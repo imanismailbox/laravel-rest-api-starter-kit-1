@@ -65,7 +65,7 @@ final class AuthController extends ApiController
 
         $user = User::query()
             ->where(function ($query) use ($identifier): void {
-                $query->where('email', $identifier)
+                $query->where('email', mb_strtolower($identifier))
                     ->orWhere('username', $identifier);
             })
             ->first();

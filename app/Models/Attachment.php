@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\AttachmentFactory;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -201,25 +200,5 @@ final class Attachment extends Model
         }
 
         return false;
-    }
-
-    /**
-     * Scope to filter by privacy status.
-     *
-     * @param  Builder<self>  $query
-     */
-    public function scopePrivate(Builder $query, bool $isPrivate = true): void
-    {
-        $query->where('is_private', $isPrivate);
-    }
-
-    /**
-     * Scope to filter only images.
-     *
-     * @param  Builder<self>  $query
-     */
-    public function scopeImages(Builder $query): void
-    {
-        $query->where('mime', 'like', 'image/%');
     }
 }

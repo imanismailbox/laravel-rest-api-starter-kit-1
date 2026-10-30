@@ -21,16 +21,6 @@ final class ImageService
     }
 
     /**
-     * Determine whether the given file is an image.
-     */
-    public function isImage(UploadedFile|string $file): bool
-    {
-        $mime = $file instanceof UploadedFile ? $file->getMimeType() : (mime_content_type($file) ?: '');
-
-        return str_starts_with((string) $mime, 'image/');
-    }
-
-    /**
      * Determine whether the image can be processed/resampled.
      */
     public function isResizable(UploadedFile|string $file): bool

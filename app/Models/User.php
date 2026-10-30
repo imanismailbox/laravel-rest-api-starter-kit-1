@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Actions\Attachment\DeleteAttachment;
 use App\Concerns\HasAttachment;
 use App\Concerns\HasFcmTokens;
 use Carbon\CarbonImmutable;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +23,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\DatabaseNotificationCollection;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
@@ -137,6 +140,28 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
                 $user->tokens()->delete();
             }
         });
+
+        // Attachment rows null their user_id on delete, so remove the user's files first.
+        self::forceDeleting(static function (User $user): void {
+            Attachment::query()->where('user_id', $user->id)
+                ->each(static fn (Attachment $attachment): bool => app(DeleteAttachment::class)->handle($attachment));
+
+            $avatar = $user->avatar;
+            if ($avatar && ! str_starts_with($avatar, 'http')) {
+                $disk = (string) config('filesystems.default');
+                DB::afterCommit(static fn () => rescue(static fn () => Storage::disk($disk)->delete($avatar), report: true));
+            }
+        });
+    }
+
+    /**
+     * Store emails lowercased so lookups and unique checks ignore case.
+     *
+     * @return Attribute<string, string>
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(set: static fn (string $value): string => mb_strtolower(mb_trim($value)));
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Role;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -17,6 +18,8 @@ final readonly class CreateRole
      */
     public function handle(array $data): Role
     {
+        Gate::authorize('grant-permissions', [$data['permissions'] ?? []]);
+
         return DB::transaction(function () use ($data): Role {
             /** @var Role $role */
             $role = Role::query()->create([

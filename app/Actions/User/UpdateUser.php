@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions\User;
 
-use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -23,9 +22,7 @@ final readonly class UpdateUser
             $user = User::query()->lockForUpdate()->findOrFail($user->id);
             Gate::authorize('manage-user', $user);
 
-            if (in_array(UserRole::Admin->value, $data['roles'] ?? [], true)) {
-                Gate::authorize('assign-admin-role');
-            }
+            Gate::authorize('grant-roles', [$data['roles'] ?? []]);
 
             if (isset($data['name'])) {
                 $user->name = $data['name'];

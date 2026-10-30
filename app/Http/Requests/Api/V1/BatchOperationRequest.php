@@ -19,8 +19,19 @@ final class BatchOperationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'ids' => ['required', 'array', 'min:1'],
+            'ids' => ['required', 'array', 'min:1', 'max:100'],
             'ids.*' => ['required', 'string'],
         ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function ids(): array
+    {
+        /** @var array<int, string> $ids */
+        $ids = $this->validated('ids');
+
+        return $ids;
     }
 }

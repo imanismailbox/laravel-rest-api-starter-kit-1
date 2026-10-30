@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Password;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function (): void {
-    Setting::clearCache();
     $this->seed(RolesAndPermissionsSeeder::class);
 });
 

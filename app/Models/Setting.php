@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
 use JsonException;
 
@@ -19,12 +18,6 @@ final class Setting extends Model
     use HasFactory;
 
     use HasUuids;
-
-    public const CACHE_KEY = 'app_settings_all';
-
-    public const CACHE_MODELS_KEY = 'app_settings_models';
-
-    public const CACHE_TTL = 86400; // 24 hours
 
     /**
      * @var list<string>
@@ -67,18 +60,6 @@ final class Setting extends Model
     }
 
     /**
-     * Retrieve current settings as a key => casted_value collection.
-     *
-     * @return Collection<string, mixed>
-     */
-    public static function getAllCached(): Collection
-    {
-        return self::query()->get()->mapWithKeys(function (self $setting): array {
-            return [$setting->key => $setting->getCastedValue()];
-        });
-    }
-
-    /**
      * Retrieve current settings model records ordered.
      *
      * @return Collection<int, self>
@@ -89,26 +70,13 @@ final class Setting extends Model
     }
 
     /**
-     * Clear settings cache.
-     */
-    public static function clearCache(): void
-    {
-        Cache::forget(self::CACHE_KEY);
-        Cache::forget(self::CACHE_MODELS_KEY);
-    }
-
-    /**
      * Retrieve a single setting by key, with optional default fallback.
      */
     public static function get(string $key, mixed $default = null): mixed
     {
-        $all = self::getAllCached();
+        $setting = self::query()->where('key', $key)->first();
 
-        if ($all->has($key)) {
-            return $all->get($key);
-        }
-
-        return $default;
+        return $setting !== null ? $setting->getCastedValue() : $default;
     }
 
     /**
@@ -131,8 +99,6 @@ final class Setting extends Model
 
         $setting->setCastedValue($value, $type);
         $setting->save();
-
-        self::clearCache();
 
         return $setting;
     }

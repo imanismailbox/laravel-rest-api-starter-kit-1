@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\User;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 
 final readonly class DeleteUser
 {
@@ -13,6 +14,8 @@ final readonly class DeleteUser
      */
     public function handle(User $user): bool
     {
+        Gate::authorize('manage-user', $user);
+
         return (bool) $user->delete();
     }
 }

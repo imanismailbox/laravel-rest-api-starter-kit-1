@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Role;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -17,6 +18,8 @@ final readonly class UpdateRole
      */
     public function handle(Role $role, array $data): Role
     {
+        Gate::authorize('grant-permissions', [$data['permissions'] ?? []]);
+
         return DB::transaction(function () use ($role, $data): Role {
             $fillable = array_intersect_key($data, array_flip(['name', 'guard_name']));
             if (! empty($fillable)) {

@@ -130,6 +130,7 @@ final readonly class ImportUsers
 
             $name = $this->extractValue($props, ['name', 'nama', 'full_name', 'fullname']);
             $email = $this->extractValue($props, ['email', 'email_address', 'surel']);
+            $email = $email !== null ? mb_strtolower(mb_trim($email)) : null;
             $username = $this->extractValue($props, ['username', 'user_name']);
             $password = $this->extractValue($props, ['password', 'pass', 'kata_sandi']);
             $rolesStr = $this->extractValue($props, ['role', 'roles', 'peran']);
@@ -152,9 +153,7 @@ final readonly class ImportUsers
 
                     $roles = $rolesStr ? array_filter(array_map('trim', explode(',', $rolesStr))) : [];
                     $validRoles = \Spatie\Permission\Models\Role::whereIn('name', $roles)->pluck('name')->all();
-                    if (in_array('admin', $validRoles, true)) {
-                        Gate::authorize('assign-admin-role');
-                    }
+                    Gate::authorize('grant-roles', [$validRoles]);
 
                     if ($existingUser) {
                         Gate::authorize('manage-user', $existingUser);

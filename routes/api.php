@@ -26,6 +26,11 @@ Route::prefix('v1')->as('api.v1.')->group(function (): void {
         Route::post('/login', [AuthController::class, 'login'])->name('login');
     });
 
+    // Attachment downloads also accept `?pat=` so plain links (img src, <a href>) work without headers.
+    Route::get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])
+        ->name('attachments.download')
+        ->middleware(['pat', 'auth:sanctum']);
+
     // Authenticated Endpoints
     Route::middleware('auth:sanctum')->group(function (): void {
         // Auth (Authenticated)
@@ -70,7 +75,6 @@ Route::prefix('v1')->as('api.v1.')->group(function (): void {
         // Attachments
         Route::post('/attachments', [AttachmentController::class, 'store'])->name('attachments.store');
         Route::get('/attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
-        Route::get('/attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
         Route::delete('/attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 
         // User Attachments

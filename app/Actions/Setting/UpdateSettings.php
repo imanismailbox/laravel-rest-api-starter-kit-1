@@ -25,8 +25,6 @@ final readonly class UpdateSettings
             }
         });
 
-        Setting::clearCache();
-
         return Setting::query()->orderBy('group')->orderBy('key')->get();
     }
 }

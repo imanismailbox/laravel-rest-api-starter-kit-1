@@ -6,7 +6,6 @@ use App\Enums\UserRole;
 use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
-use Illuminate\Support\Facades\Cache;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function (): void {
@@ -77,20 +76,13 @@ test('direct setting callers reject malformed typed values', function (string $t
     ['array', '{broken'], ['json', 'null'], ['string', []],
 ]);
 
-test('settings reads ignore stale legacy cache entries and database changes are immediately visible', function (): void {
+test('settings database changes are immediately visible', function (): void {
     Setting::set('visible', 'old', isPublic: true);
-    $stale = Setting::getAllModels();
-    Cache::put(Setting::CACHE_KEY, collect(['visible' => 'stale']));
-    Cache::put(Setting::CACHE_MODELS_KEY, $stale);
 
     Setting::where('key', 'visible')->update(['value' => 'new', 'is_public' => false]);
 
     expect(Setting::get('visible'))->toBe('new')
-        ->and(Setting::getAllCached()->get('visible'))->toBe('new')
+        ->and(Setting::get('missing', 'fallback'))->toBe('fallback')
         ->and(Setting::getAllModels()->first()->value)->toBe('new');
     $this->getJson(route('api.v1.settings.public'))->assertOk()->assertJsonCount(0, 'data');
-
-    Setting::clearCache();
-    expect(Cache::has(Setting::CACHE_KEY))->toBeFalse()
-        ->and(Cache::has(Setting::CACHE_MODELS_KEY))->toBeFalse();
 });

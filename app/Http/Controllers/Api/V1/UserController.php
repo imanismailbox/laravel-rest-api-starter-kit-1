@@ -22,8 +22,10 @@ use App\Models\User;
 use App\Query\Definitions\UserQueryDefinition;
 use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -102,7 +104,7 @@ final class UserController extends ApiController
      */
     public function batchDestroy(BatchOperationRequest $request): JsonResponse
     {
-        return $this->batchDestroyInternal($request);
+        return $this->batchDestroyInternal($request->ids());
     }
 
     /**
@@ -112,6 +114,7 @@ final class UserController extends ApiController
     {
         /** @var User $user */
         $user = User::onlyTrashed()->findOrFail($id);
+        Gate::authorize('manage-user', $user);
         $user->restore();
         $user->loadMissing(['roles', 'permissions']);
 
@@ -128,7 +131,8 @@ final class UserController extends ApiController
     {
         /** @var User $user */
         $user = User::withTrashed()->findOrFail($id);
-        $user->forceDelete();
+        Gate::authorize('manage-user', $user);
+        DB::transaction(fn () => $user->forceDelete());
 
         return ApiResponse::success(
             message: 'User permanently deleted.',
@@ -140,7 +144,7 @@ final class UserController extends ApiController
      */
     public function batchRestore(BatchOperationRequest $request): JsonResponse
     {
-        return $this->batchRestoreInternal($request);
+        return $this->batchRestoreInternal($request->ids());
     }
 
     /**
@@ -148,7 +152,7 @@ final class UserController extends ApiController
      */
     public function batchForceDestroy(BatchOperationRequest $request): JsonResponse
     {
-        return $this->batchForceDestroyInternal($request);
+        return $this->batchForceDestroyInternal($request->ids());
     }
 
     /**
@@ -208,5 +212,13 @@ final class UserController extends ApiController
         return ApiResponse::success(
             message: 'Attachment unlinked from user successfully.',
         );
+    }
+
+    /**
+     * Stop delegates from batch-changing administrators.
+     */
+    protected function authorizeBatchItem(Model $item): void
+    {
+        Gate::authorize('manage-user', $item);
     }
 }

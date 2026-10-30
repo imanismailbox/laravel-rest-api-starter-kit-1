@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Auth;
 
+use App\Concerns\NormalizesEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
 
 final class RegisterRequest extends FormRequest
 {
+    use NormalizesEmail;
+
     public function authorize(): bool
     {
         return true;

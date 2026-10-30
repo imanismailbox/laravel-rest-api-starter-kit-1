@@ -5,12 +5,12 @@ declare(strict_types=1);
 use App\Enums\ApiErrorCode;
 use App\Http\Middleware\AccessTokenMiddleware;
 use App\Http\Middleware\EnforceTransportSecurity;
-use App\Http\Middleware\EnsureEmailVerified;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\LogApiRequests;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -33,16 +33,14 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'force.json' => ForceJsonResponse::class,
-            'log.api' => LogApiRequests::class,
             'pat' => AccessTokenMiddleware::class,
-            'verified.api' => EnsureEmailVerified::class,
-            'security.hsts' => EnforceTransportSecurity::class,
         ]);
 
         $middleware->trustProxies(at: '*');
 
-        $middleware->prepend(AccessTokenMiddleware::class);
+        // `pat` must turn the query token into a header before auth runs.
+        $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: AccessTokenMiddleware::class);
+
         $middleware->prependToGroup('api', ForceJsonResponse::class);
         $middleware->appendToGroup('api', LogApiRequests::class);
         $middleware->appendToGroup('api', EnforceTransportSecurity::class);

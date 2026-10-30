@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Override;
+use Spatie\Permission\Models\Role;
 
 final class AppServiceProvider extends ServiceProvider
 {
@@ -67,7 +68,13 @@ final class AppServiceProvider extends ServiceProvider
     private function configureAuthorization(): void
     {
         Gate::define('viewApiDocs', static fn (?User $user): bool => $user instanceof User);
-        Gate::define('assign-admin-role', static fn (User $actor): bool => $actor->hasRole(UserRole::Admin->value));
+        Gate::define('grant-permissions', static fn (User $actor, array $permissions): bool => $actor->hasRole(UserRole::Admin->value)
+            || collect($permissions)->every(static fn (string $permission): bool => $actor->hasPermissionTo($permission)));
+        Gate::define('grant-roles', static fn (User $actor, array $roles): bool => $actor->hasRole(UserRole::Admin->value)
+            || (! in_array(UserRole::Admin->value, $roles, true)
+                && Gate::forUser($actor)->allows('grant-permissions', [
+                    Role::query()->whereIn('name', $roles)->with('permissions')->get()->flatMap->permissions->pluck('name')->unique()->all(),
+                ])));
         Gate::define('manage-user', static fn (User $actor, User $target): bool => $actor->hasRole(UserRole::Admin->value) || ! $target->hasRole(UserRole::Admin->value));
     }
 }

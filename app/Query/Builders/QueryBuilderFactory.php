@@ -11,7 +11,6 @@ use App\Query\Support\QueryDefinitionParser;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
 use Spatie\QueryBuilder\AllowedFilter;
 use Spatie\QueryBuilder\AllowedInclude;
@@ -186,14 +185,9 @@ final class QueryBuilderFactory
     {
         $instance = new $modelClass();
         $table = $instance->getTable();
-        if (! isset(self::$tableColumns[$table])) {
-            self::$tableColumns[$table] = Cache::rememberForever(
-                "table_columns_{$table}",
-                fn (): array => $instance->getConnection()
-                    ->getSchemaBuilder()
-                    ->getColumnListing($table),
-            );
-        }
+        self::$tableColumns[$table] ??= $instance->getConnection()
+            ->getSchemaBuilder()
+            ->getColumnListing($table);
 
         return self::$tableColumns[$table];
     }
