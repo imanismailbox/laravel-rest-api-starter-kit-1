@@ -21,7 +21,7 @@ final readonly class GlobalSearchFilter implements Filter
     {
         unset($property);
 
-        $search = mb_trim((string) $value);
+        $search = mb_trim(is_array($value) ? implode(',', $value) : (string) $value);
 
         if ($search === '') {
             return;

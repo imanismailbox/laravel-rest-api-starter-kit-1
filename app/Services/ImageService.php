@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
-use Throwable;
+use RuntimeException;
 
 final class ImageService
 {
@@ -25,7 +25,7 @@ final class ImageService
      */
     public function isImage(UploadedFile|string $file): bool
     {
-        $mime = $file instanceof UploadedFile ? $file->getClientMimeType() : (mime_content_type($file) ?: '');
+        $mime = $file instanceof UploadedFile ? $file->getMimeType() : (mime_content_type($file) ?: '');
 
         return str_starts_with((string) $mime, 'image/');
     }
@@ -35,7 +35,7 @@ final class ImageService
      */
     public function isResizable(UploadedFile|string $file): bool
     {
-        $mime = $file instanceof UploadedFile ? $file->getClientMimeType() : (mime_content_type($file) ?: '');
+        $mime = $file instanceof UploadedFile ? $file->getMimeType() : (mime_content_type($file) ?: '');
 
         return in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'image/gif'], true);
     }
@@ -53,33 +53,30 @@ final class ImageService
         ?string $customName = null
     ): string {
         $targetDisk = $disk ?: (string) config('filesystems.default');
-        $extension = mb_strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg');
+        $extension = mb_strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'jpg');
         $fileName = $customName ?: Str::uuid()->toString().'.'.$extension;
         $filePath = mb_rtrim($directory, '/').'/'.$fileName;
 
         if (! $this->isResizable($file)) {
-            Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName);
-
-            return $filePath;
-        }
-
-        try {
-            $image = $this->manager->decode($file->getRealPath() ?: $file->getPathname());
-
-            if ($maxWidth !== null || $maxHeight !== null) {
-                $image->scaleDown(width: $maxWidth, height: $maxHeight);
+            if (Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName) === false) {
+                throw new RuntimeException('Image could not be stored.');
             }
 
-            $encoded = $image->encodeUsingFileExtension($extension, quality: $quality);
-
-            Storage::disk($targetDisk)->put($filePath, (string) $encoded);
-
-            return $filePath;
-        } catch (Throwable) {
-            Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName);
-
             return $filePath;
         }
+
+        $image = $this->manager->decode($file->getRealPath() ?: $file->getPathname());
+
+        if ($maxWidth !== null || $maxHeight !== null) {
+            $image->scaleDown(width: $maxWidth, height: $maxHeight);
+        }
+
+        $encoded = $image->encodeUsingFileExtension($extension, quality: $quality);
+        if (! Storage::disk($targetDisk)->put($filePath, (string) $encoded)) {
+            throw new RuntimeException('Image could not be stored.');
+        }
+
+        return $filePath;
     }
 
     /**
@@ -93,30 +90,19 @@ final class ImageService
         ?string $disk = null
     ): string {
         $targetDisk = $disk ?: (string) config('filesystems.default');
-        $extension = mb_strtolower($file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'jpg');
+        $extension = mb_strtolower($file->guessExtension() ?: $file->getClientOriginalExtension() ?: 'jpg');
         $fileName = 'thumb_'.Str::uuid()->toString().'.'.$extension;
         $filePath = mb_rtrim($directory, '/').'/'.$fileName;
 
-        if (! $this->isResizable($file)) {
-            Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName);
+        $image = $this->manager->decode($file->getRealPath() ?: $file->getPathname());
+        $image->cover(width: $size, height: $size);
+        $encoded = $image->encodeUsingFileExtension($extension, quality: $quality);
 
-            return $filePath;
+        if (! Storage::disk($targetDisk)->put($filePath, (string) $encoded)) {
+            throw new RuntimeException('Thumbnail could not be stored.');
         }
 
-        try {
-            $image = $this->manager->decode($file->getRealPath() ?: $file->getPathname());
-            $image->cover(width: $size, height: $size);
-
-            $encoded = $image->encodeUsingFileExtension($extension, quality: $quality);
-
-            Storage::disk($targetDisk)->put($filePath, (string) $encoded);
-
-            return $filePath;
-        } catch (Throwable) {
-            Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName);
-
-            return $filePath;
-        }
+        return $filePath;
     }
 
     /**

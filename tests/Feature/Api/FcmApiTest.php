@@ -97,6 +97,35 @@ test('user can dispatch a test push notification', function (): void {
     );
 });
 
+test('generic FCM notification builds the actual channel message', function (): void {
+    $notification = new GenericFcmNotification(
+        title: 'Order ready',
+        body: 'Order 99 is ready.',
+        data: ['order_id' => '99'],
+        image: 'https://example.com/order.png',
+    );
+
+    expect($notification->toFcm($this->user)->toArray())->toBe([
+        'data' => ['order_id' => '99'],
+        'notification' => [
+            'title' => 'Order ready',
+            'body' => 'Order 99 is ready.',
+            'image' => 'https://example.com/order.png',
+        ],
+    ]);
+    expect((new GenericFcmNotification('Title', 'Body'))->toFcm($this->user)->toArray())
+        ->toBe(['notification' => ['title' => 'Title', 'body' => 'Body']]);
+});
+
+test('test notification rejects non-string FCM data', function (mixed $value): void {
+    $this->user->registerFcmToken('validation_token', 'android');
+    $this->postJson(route('api.v1.fcm.test'), [
+        'title' => 'Test',
+        'body' => 'Body',
+        'data' => ['order_id' => $value],
+    ])->assertApiValidationError('data.order_id');
+})->with([99, false, null, [['nested' => 'value']]]);
+
 test('test notification fails when user has no registered devices', function (): void {
     $this->postJson(route('api.v1.fcm.test'), [
         'title' => 'Test',

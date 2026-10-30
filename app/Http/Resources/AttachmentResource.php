@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Models\Attachment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Gate;
 
 /**
  * @mixin Attachment
@@ -20,6 +21,8 @@ final class AttachmentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        Gate::authorize('view', $this->resource);
+
         return [
             'id' => (int) $this->id,
             'user_id' => $this->user_id ? (string) $this->user_id : null,

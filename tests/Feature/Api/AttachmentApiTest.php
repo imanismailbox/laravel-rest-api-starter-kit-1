@@ -15,6 +15,7 @@ use Laravel\Sanctum\Sanctum;
 
 beforeEach(function (): void {
     Storage::fake('public');
+    Storage::fake('local');
     $this->seed(RolesAndPermissionsSeeder::class);
 
     $this->user = User::factory()->create();
@@ -118,8 +119,35 @@ test('standalone ImageService can be used for direct model attributes like featu
     Storage::disk('public')->assertMissing($path);
 });
 
+test('image storage derives the output format from JPEG contents', function (string $method): void {
+    $source = UploadedFile::fake()->image('photo.jpg', 600, 400);
+    $file = new UploadedFile($source->getPathname(), 'photo.jfif', 'image/jpeg', null, true);
+
+    $path = app(ImageService::class)->{$method}($file);
+    $image = getimagesize(Storage::disk('public')->path($path));
+
+    expect(pathinfo($path, PATHINFO_EXTENSION))->toBe('jpg')
+        ->and($image['mime'])->toBe('image/jpeg')
+        ->and([$image[0], $image[1]])->toBe($method === 'storeThumbnail' ? [300, 300] : [600, 400]);
+})->with(['store', 'storeThumbnail']);
+
+test('user can upload a JPEG avatar with a jfif filename', function (): void {
+    $source = UploadedFile::fake()->image('photo.jpg', 600, 400);
+    $file = new UploadedFile($source->getPathname(), 'photo.jfif', 'image/jpeg', null, true);
+
+    $response = $this->postJson(route('api.v1.auth.me.avatar.upload'), ['avatar' => $file])
+        ->assertApiSuccess('Avatar uploaded successfully.');
+
+    $path = $response->json('data.avatar');
+    $image = getimagesize(Storage::disk('public')->path($path));
+    expect($this->user->fresh()->avatar)->toBe($path)
+        ->and(pathinfo($path, PATHINFO_EXTENSION))->toBe('jpg')
+        ->and($image['mime'])->toBe('image/jpeg')
+        ->and([$image[0], $image[1]])->toBe([500, 500]);
+});
+
 test('upload attachment can directly link to an attachable model in one step', function (): void {
-    $targetUser = User::factory()->create();
+    $targetUser = $this->user;
     $file = UploadedFile::fake()->image('avatar.png', 200, 200);
 
     $response = $this->postJson(route('api.v1.attachments.store'), [
@@ -178,8 +206,8 @@ test('user can delete attachment and remove file from storage and pivot', functi
 });
 
 test('user can sync attachments to a model via endpoint', function (): void {
-    $att1 = Attachment::factory()->create();
-    $att2 = Attachment::factory()->create();
+    $att1 = Attachment::factory()->create(['user_id' => $this->user->id]);
+    $att2 = Attachment::factory()->create(['user_id' => $this->user->id]);
 
     $response = $this->postJson(route('api.v1.users.attachments.sync', $this->user), [
         'attachment_ids' => [$att1->id, $att2->id],

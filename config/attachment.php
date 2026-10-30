@@ -28,7 +28,7 @@ return [
      */
     'allowed_extensions' => [
         // Images
-        'jpg', 'jpeg', 'png', 'gif', 'svg', 'webp',
+        'jpg', 'jpeg', 'png', 'gif', 'webp',
 
         // Video & Audio
         'mp4', 'webm', 'mp3', 'wav', 'ogg',

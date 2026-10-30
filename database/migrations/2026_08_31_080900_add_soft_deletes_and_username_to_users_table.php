@@ -29,14 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('users', function (Blueprint $table): void {
-            if (Schema::hasColumn('users', 'deleted_at')) {
-                $table->dropSoftDeletes();
-            }
-
-            if (Schema::hasColumn('users', 'username')) {
-                $table->dropColumn('username');
-            }
-        });
+        // The initial users migration owns these columns; rollback must preserve them.
     }
 };

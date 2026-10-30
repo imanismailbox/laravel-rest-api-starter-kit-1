@@ -8,8 +8,14 @@ use App\Models\User;
 use Exception;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rules\Password;
 use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use RuntimeException;
+use ZipArchive;
 
 final readonly class ImportUsers
 {
@@ -25,14 +31,64 @@ final readonly class ImportUsers
         ];
 
         try {
-            $import = new class implements \Maatwebsite\Excel\Concerns\ToArray
+            $archive = new ZipArchive;
+            if ($archive->open($file->getRealPath()) === true) {
+                try {
+                    $expandedSize = 0;
+                    for ($i = 0; $i < $archive->numFiles; $i++) {
+                        $entry = $archive->statIndex($i);
+                        if ($entry === false) {
+                            throw new RuntimeException('Cannot read workbook archive metadata.');
+                        }
+                        $expandedSize += $entry['size'];
+                        if ($expandedSize > 50 * 1024 * 1024) {
+                            $results['errors'][] = 'The unpacked workbook must not exceed 50 MB.';
+
+                            return $results;
+                        }
+                    }
+                } finally {
+                    $archive->close();
+                }
+            }
+
+            $reader = IOFactory::createReaderForFile($file->getRealPath());
+            $info = $reader->listWorksheetInfo($file->getRealPath());
+            if (($info[0]['totalRows'] ?? 0) > 1001) {
+                $results['errors'][] = 'The first sheet must contain at most 1000 data rows.';
+
+                return $results;
+            }
+
+            if (($info[0]['totalColumns'] ?? 0) > 50) {
+                $results['errors'][] = 'The first sheet must contain at most 50 columns.';
+
+                return $results;
+            }
+
+            $import = new class implements \Maatwebsite\Excel\Concerns\ToArray, \Maatwebsite\Excel\Concerns\WithChunkReading, \Maatwebsite\Excel\Concerns\WithMultipleSheets
             {
-                public function array(array $array): void {}
+                /** @var array<int, array<int, mixed>> */
+                public array $rows = [];
+
+                public function array(array $array): void
+                {
+                    array_push($this->rows, ...$array);
+                }
+
+                public function chunkSize(): int
+                {
+                    return 250;
+                }
+
+                public function sheets(): array
+                {
+                    return [0 => $this];
+                }
             };
 
-            /** @var array<int, array<int, array<int, mixed>>> $sheets */
-            $sheets = Excel::toArray($import, $file);
-            $rows = $sheets[0] ?? [];
+            Excel::import($import, $file);
+            $rows = $import->rows;
         } catch (Exception $e) {
             $results['errors'][] = 'Failed to read spreadsheet: '.$e->getMessage();
 
@@ -75,7 +131,7 @@ final readonly class ImportUsers
             $name = $this->extractValue($props, ['name', 'nama', 'full_name', 'fullname']);
             $email = $this->extractValue($props, ['email', 'email_address', 'surel']);
             $username = $this->extractValue($props, ['username', 'user_name']);
-            $password = $this->extractValue($props, ['password', 'pass', 'kata_sandi']) ?? 'Password123!';
+            $password = $this->extractValue($props, ['password', 'pass', 'kata_sandi']);
             $rolesStr = $this->extractValue($props, ['role', 'roles', 'peran']);
 
             if (! $name || ! $email) {
@@ -92,9 +148,16 @@ final readonly class ImportUsers
 
             try {
                 DB::transaction(function () use ($name, $email, $username, $password, $rolesStr, &$results): void {
-                    $existingUser = User::withTrashed()->where('email', $email)->first();
+                    $existingUser = User::withTrashed()->where('email', $email)->lockForUpdate()->first();
+
+                    $roles = $rolesStr ? array_filter(array_map('trim', explode(',', $rolesStr))) : [];
+                    $validRoles = \Spatie\Permission\Models\Role::whereIn('name', $roles)->pluck('name')->all();
+                    if (in_array('admin', $validRoles, true)) {
+                        Gate::authorize('assign-admin-role');
+                    }
 
                     if ($existingUser) {
+                        Gate::authorize('manage-user', $existingUser);
                         if ($existingUser->trashed()) {
                             $existingUser->restore();
                         }
@@ -104,16 +167,16 @@ final readonly class ImportUsers
                             'username' => $username ?: $existingUser->username,
                         ]);
 
-                        if ($rolesStr !== null && $rolesStr !== '') {
-                            $roles = array_filter(array_map('trim', explode(',', $rolesStr)));
-                            $validRoles = \Spatie\Permission\Models\Role::whereIn('name', $roles)->pluck('name')->all();
-                            if ($validRoles !== []) {
-                                $existingUser->syncRoles($validRoles);
-                            }
+                        if ($validRoles !== []) {
+                            $existingUser->syncRoles($validRoles);
                         }
 
                         $results['updated_count']++;
                     } else {
+                        Validator::make(['password' => $password], [
+                            'password' => ['required', 'string', Password::defaults()],
+                        ])->validate();
+
                         /** @var User $newUser */
                         $newUser = User::query()->create([
                             'name' => $name,
@@ -123,12 +186,8 @@ final readonly class ImportUsers
                             'email_verified_at' => now(),
                         ]);
 
-                        if ($rolesStr !== null && $rolesStr !== '') {
-                            $roles = array_filter(array_map('trim', explode(',', $rolesStr)));
-                            $validRoles = \Spatie\Permission\Models\Role::whereIn('name', $roles)->pluck('name')->all();
-                            if ($validRoles !== []) {
-                                $newUser->syncRoles($validRoles);
-                            }
+                        if ($validRoles !== []) {
+                            $newUser->syncRoles($validRoles);
                         }
 
                         $results['created_count']++;

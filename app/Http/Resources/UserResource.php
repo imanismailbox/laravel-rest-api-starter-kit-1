@@ -21,13 +21,13 @@ final class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'id' => (string) $this->id,
-            'name' => $this->name,
-            'email' => $this->email,
-            'username' => $this->getAttribute('username'),
-            'avatar' => $this->getAttribute('avatar'),
-            'avatar_url' => $this->avatarUrl(),
-            'email_verified_at' => $this->email_verified_at?->toISOString(),
+            'id' => $this->whenHas('id', fn (): string => (string) $this->id),
+            'name' => $this->whenHas('name'),
+            'email' => $this->whenHas('email'),
+            'username' => $this->whenHas('username'),
+            'avatar' => $this->whenHas('avatar'),
+            'avatar_url' => $this->whenHas('avatar', fn (): ?string => $this->avatarUrl()),
+            'email_verified_at' => $this->whenHas('email_verified_at', fn (): ?string => $this->email_verified_at?->toISOString()),
             'roles' => $this->when(
                 $this->relationLoaded('roles'),
                 fn (): array => $this->getRoleNames()->values()->toArray()
@@ -37,8 +37,8 @@ final class UserResource extends JsonResource
                 fn (): array => $this->getAllPermissions()->pluck('name')->values()->toArray()
             ),
             'attachments' => AttachmentResource::collection($this->whenLoaded('attachments')),
-            'created_at' => $this->created_at?->toISOString(),
-            'updated_at' => $this->updated_at?->toISOString(),
+            'created_at' => $this->whenHas('created_at', fn (): ?string => $this->created_at?->toISOString()),
+            'updated_at' => $this->whenHas('updated_at', fn (): ?string => $this->updated_at?->toISOString()),
         ];
     }
 }

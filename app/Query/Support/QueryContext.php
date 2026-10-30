@@ -7,6 +7,7 @@ namespace App\Query\Support;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Validator;
 
 final readonly class QueryContext
 {
@@ -23,10 +24,28 @@ final readonly class QueryContext
         $authenticatedUser = $request->user();
         $params = $request->query();
 
-        // Normalize direct query params for seamless backward compatibility
         $directFilters = ['search', 'role', 'log_name', 'event', 'subject_type', 'guard_name', 'trashed'];
+        $rules = [
+            'filter' => ['sometimes', 'array'],
+            'filter.*' => ['nullable', 'string'],
+            'fields' => ['sometimes', 'array'],
+            'fields.*' => ['string'],
+            'sort' => ['sometimes', 'string'],
+            'include' => ['sometimes', 'string'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1'],
+            'perpage' => ['sometimes', 'integer', 'min:1'],
+            'paginate' => ['sometimes', 'in:true,false,1,0'],
+            'export' => ['sometimes', 'in:true,false,1,0'],
+        ];
         foreach ($directFilters as $filterKey) {
-            if ($request->has($filterKey) && ! isset($params['filter'][$filterKey])) {
+            $rules[$filterKey] = ['sometimes', 'nullable', 'string'];
+        }
+        Validator::make($params, $rules)->validate();
+
+        // Normalize only validated query params for backward compatibility.
+        foreach ($directFilters as $filterKey) {
+            if (array_key_exists($filterKey, $params) && ! isset($params['filter'][$filterKey])) {
                 $params['filter'][$filterKey] = $request->query($filterKey);
             }
         }

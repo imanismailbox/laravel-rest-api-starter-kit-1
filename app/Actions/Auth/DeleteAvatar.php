@@ -16,15 +16,14 @@ final readonly class DeleteAvatar
     public function handle(User $user): User
     {
         return DB::transaction(function () use ($user): User {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
             $disk = (string) config('filesystems.default');
+            $oldPath = $user->avatar;
+            $user->update(['avatar' => null]);
 
-            if ($user->avatar && ! str_starts_with($user->avatar, 'http') && Storage::disk($disk)->exists($user->avatar)) {
-                Storage::disk($disk)->delete($user->avatar);
+            if ($oldPath && ! str_starts_with($oldPath, 'http')) {
+                DB::afterCommit(fn () => rescue(fn () => Storage::disk($disk)->delete($oldPath), report: true));
             }
-
-            $user->update([
-                'avatar' => null,
-            ]);
 
             return $user;
         });

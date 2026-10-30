@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
@@ -66,5 +67,7 @@ final class AppServiceProvider extends ServiceProvider
     private function configureAuthorization(): void
     {
         Gate::define('viewApiDocs', static fn (?User $user): bool => $user instanceof User);
+        Gate::define('assign-admin-role', static fn (User $actor): bool => $actor->hasRole(UserRole::Admin->value));
+        Gate::define('manage-user', static fn (User $actor, User $target): bool => $actor->hasRole(UserRole::Admin->value) || ! $target->hasRole(UserRole::Admin->value));
     }
 }

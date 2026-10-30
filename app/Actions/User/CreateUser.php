@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions\User;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 
 final readonly class CreateUser
@@ -17,6 +19,10 @@ final readonly class CreateUser
      */
     public function handle(array $data): User
     {
+        if (in_array(UserRole::Admin->value, $data['roles'] ?? [], true)) {
+            Gate::authorize('assign-admin-role');
+        }
+
         return DB::transaction(function () use ($data): User {
             $user = User::query()->create([
                 'name' => (string) $data['name'],

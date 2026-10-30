@@ -16,6 +16,10 @@ final class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
+        if (! app()->environment(['local', 'testing'])) {
+            return;
+        }
+
         /** @var User $admin */
         $admin = User::query()->firstOrCreate(['email' => 'admin@example.com'], [
             'name' => 'Administrator',
@@ -24,6 +28,8 @@ final class AdminUserSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        $admin->assignRole(UserRole::Admin->value);
+        if ($admin->wasRecentlyCreated) {
+            $admin->assignRole(UserRole::Admin->value);
+        }
     }
 }

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions\User;
 
+use App\Enums\UserRole;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 
 final readonly class UpdateUser
@@ -18,6 +20,13 @@ final readonly class UpdateUser
     public function handle(User $user, array $data): User
     {
         return DB::transaction(function () use ($user, $data): User {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            Gate::authorize('manage-user', $user);
+
+            if (in_array(UserRole::Admin->value, $data['roles'] ?? [], true)) {
+                Gate::authorize('assign-admin-role');
+            }
+
             if (isset($data['name'])) {
                 $user->name = $data['name'];
             }

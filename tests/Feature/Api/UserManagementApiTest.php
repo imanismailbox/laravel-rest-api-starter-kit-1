@@ -191,7 +191,7 @@ test('can export users to spreadsheet', function (): void {
 });
 
 test('can bulk import users from spreadsheet', function (): void {
-    $csvContent = "Name,Email,Username,Role\nJohn Doe,john.imported@example.com,johndoe,admin\nJane Smith,jane.imported@example.com,janesmith,admin\n";
+    $csvContent = "Name,Email,Username,Role,Password\nJohn Doe,john.imported@example.com,johndoe,admin,Password123!\nJane Smith,jane.imported@example.com,janesmith,admin,Password123!\n";
     $file = Illuminate\Http\UploadedFile::fake()->createWithContent('users.csv', $csvContent);
 
     $response = $this->postJson(route('api.v1.users.import'), [

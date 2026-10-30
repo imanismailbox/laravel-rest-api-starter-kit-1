@@ -14,6 +14,7 @@ use App\Models\Attachment;
 use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -72,6 +73,8 @@ final class AttachmentController extends ApiController
      */
     public function show(Attachment $attachment): JsonResponse
     {
+        Gate::authorize('view', $attachment);
+
         return ApiResponse::success(
             data: new AttachmentResource($attachment),
             message: 'Attachment retrieved successfully.',
@@ -83,6 +86,8 @@ final class AttachmentController extends ApiController
      */
     public function download(Attachment $attachment, DownloadAttachment $action): BinaryFileResponse|StreamedResponse
     {
+        Gate::authorize('view', $attachment);
+
         return $action->handle($attachment);
     }
 
@@ -91,6 +96,8 @@ final class AttachmentController extends ApiController
      */
     public function destroy(Attachment $attachment, DeleteAttachment $action): JsonResponse
     {
+        Gate::authorize('delete', $attachment);
+
         $action->handle($attachment);
 
         return ApiResponse::success(

@@ -24,6 +24,7 @@ use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -179,6 +180,11 @@ final class UserController extends ApiController
      */
     public function syncAttachments(SyncAttachmentsRequest $request, User $user): JsonResponse
     {
+        $attachments = Attachment::query()->whereIn('id', $request->attachmentIds())->get();
+        foreach ($attachments as $attachment) {
+            Gate::authorize('view', $attachment);
+        }
+
         $user->syncAttachments($request->attachmentIds());
         $user->load('attachments');
 
@@ -193,6 +199,10 @@ final class UserController extends ApiController
      */
     public function detachAttachment(User $user, Attachment $attachment): JsonResponse
     {
+        Gate::authorize('updateAttachments', $user);
+        Gate::authorize('view', $attachment);
+        abort_unless($user->attachments()->whereKey($attachment->id)->exists(), 404);
+
         $user->detachAttachment($attachment);
 
         return ApiResponse::success(

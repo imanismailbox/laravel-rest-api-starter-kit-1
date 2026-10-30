@@ -21,7 +21,7 @@ A production-ready, high-performance **Laravel REST API Starter Kit** crafted wi
   - User Avatar upload with thumbnail auto-crop and old avatar cleanup.
 - **Dynamic Application Settings**:
   - Database-driven settings with automatic type-casting (`string`, `boolean`, `integer`, `float`, `array`/`json`).
-  - Multi-layer in-memory and store caching with instant invalidation.
+  - Current database reads so setting changes take effect across workers without stale cache values.
   - Public settings (`GET /api/v1/settings/public`) and Admin settings (`GET / PUT /api/v1/settings`).
   - System integration (e.g. `allow_registration` toggles public registration on/off).
 - **Audit Trail & Activity Log**:
@@ -80,9 +80,28 @@ DB_PASSWORD=secret
 php artisan migrate --seed
 ```
 
-This sets up tables, default roles (`Admin`, `User`), permissions, default application settings, and creates default accounts:
+This sets up tables, default roles (`Admin`, `User`), permissions, and default application settings. In local/testing environments only, it creates demonstration accounts:
 - **Admin**: `admin@example.com` / `password`
-- **User**: `user@example.com` / `password`
+
+Production administrators must be provisioned explicitly; production seeding never creates the demonstration administrator. An existing account is never promoted by the demonstration seeder.
+
+After configuring a real mail transport, run `php artisan tinker` and create an administrator with your own email address:
+
+```php
+$admin = \Illuminate\Support\Facades\DB::transaction(function () {
+    $user = \App\Models\User::create([
+        'name' => 'Administrator',
+        'email' => 'your-real-address@example.com',
+        'password' => \Illuminate\Support\Str::password(32),
+        'email_verified_at' => now(),
+    ]);
+    $user->assignRole('admin');
+    return $user;
+});
+\Illuminate\Support\Facades\Password::sendResetLink(['email' => $admin->email]);
+```
+
+Set your password through the emailed reset link. Creating a duplicate email fails instead of promoting an existing account.
 
 ### 4. Create Public Storage Symlink
 ```bash
@@ -143,6 +162,17 @@ Access the interactive API documentation at:
 
 ## Features & Usage Guide
 
+### Security and upgrade notes
+
+- Attachment API access is limited to the uploader or an administrator. User attachment changes are limited to that user or an administrator, and every linked file must also be accessible.
+- The generic upload endpoint only accepts `User` as its attachable model. Other models can still use `HasAttachment`, but their endpoints must supply their own authorization.
+- Private uploads use the private local disk when the selected disk is public. SVG uploads are not accepted.
+- On an existing installation, run `php artisan attachments:secure-private` during maintenance to move private attachments off the public disk. Remove or quarantine previously uploaded public SVG files separately.
+- Rotate any existing demonstration or shared import passwords. Password changes revoke existing personal API tokens.
+- Password-only API login is rejected for accounts with confirmed two-factor authentication; use the browser authentication flow until a two-factor API challenge is added.
+- Only administrators may assign the administrator role or modify administrator accounts.
+- Spreadsheet imports accept at most 1,000 data rows and 50 columns from the first sheet, with a 50 MB unpacked workbook limit. New accounts require a password that meets the normal password policy; no shared password is assigned.
+
 ### 1. Attachable System (`HasAttachment` Trait)
 
 Attach any files (documents, images, videos, audio, GIS geometries) to any Eloquent model:
@@ -189,6 +219,8 @@ $project->attachment(); // first attachment
 
 For models that store image paths directly in their own columns (`featured_image`, `banner`, `gallery`) without creating attachment records:
 
+Image output formats and generated extensions follow the detected file contents, not the uploaded filename; JPEG files named `.jfif` are stored as `.jpg`.
+
 ```php
 use App\Services\ImageService;
 
@@ -196,14 +228,18 @@ class PostController extends Controller
 {
     public function updateFeaturedImage(Post $post, UploadedFile $file, ImageService $imageService)
     {
-        // 1. Delete old image
-        $imageService->delete($post->featured_image);
-
-        // 2. Resize and store (auto EXIF rotate, max 1200px width, 80% quality)
+        // Store the replacement before changing the saved path.
         $path = $imageService->store($file, directory: 'posts/featured', maxWidth: 1200);
+        $oldPath = $post->featured_image;
 
-        // 3. Update model column directly
-        $post->update(['featured_image' => $path]);
+        try {
+            $post->update(['featured_image' => $path]);
+        } catch (\Throwable $exception) {
+            $imageService->delete($path);
+            throw $exception;
+        }
+
+        $imageService->delete($oldPath);
     }
 }
 ```
@@ -239,8 +275,8 @@ use App\Models\Setting;
 $canRegister = Setting::get('allow_registration', true);
 $appName = Setting::get('app_name', 'My App');
 
-// Set value (automatically invalidates cache)
-Setting::set('allow_registration', false, 'boolean', 'General');
+// Set a typed value
+Setting::set('allow_registration', false, group: 'General', type: 'boolean');
 ```
 
 ---

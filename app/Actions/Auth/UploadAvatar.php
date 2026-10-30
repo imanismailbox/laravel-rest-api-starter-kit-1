@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ImageService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 final readonly class UploadAvatar
 {
@@ -18,26 +19,31 @@ final readonly class UploadAvatar
      */
     public function handle(User $user, UploadedFile $file): User
     {
-        return DB::transaction(function () use ($user, $file): User {
-            $targetDisk = (string) config('filesystems.default');
+        $disk = (string) config('filesystems.default');
+        $path = $this->imageService->storeThumbnail(
+            file: $file,
+            directory: 'avatars',
+            size: 500,
+            quality: 85,
+            disk: $disk,
+        );
 
-            if ($user->avatar && ! str_starts_with($user->avatar, 'http')) {
-                $this->imageService->delete($user->avatar, $targetDisk);
-            }
+        try {
+            return DB::transaction(function () use ($user, $path, $disk): User {
+                $user = User::query()->lockForUpdate()->findOrFail($user->id);
+                $oldPath = $user->avatar;
+                $user->update(['avatar' => $path]);
 
-            $path = $this->imageService->storeThumbnail(
-                file: $file,
-                directory: 'avatars',
-                size: 500,
-                quality: 85,
-                disk: $targetDisk,
-            );
+                if ($oldPath && ! str_starts_with($oldPath, 'http')) {
+                    DB::afterCommit(fn () => rescue(fn () => $this->imageService->delete($oldPath, $disk), report: true));
+                }
 
-            $user->update([
-                'avatar' => $path,
-            ]);
+                return $user;
+            });
+        } catch (Throwable $exception) {
+            rescue(fn () => $this->imageService->delete($path, $disk), report: true);
 
-            return $user;
-        });
+            throw $exception;
+        }
     }
 }

@@ -74,6 +74,10 @@ final class AuthController extends ApiController
             return ApiResponse::unauthorized('Invalid email or password.');
         }
 
+        if ($user->two_factor_secret !== null && $user->two_factor_confirmed_at !== null) {
+            return ApiResponse::forbidden('Two-factor authentication is enabled. API login is unavailable until a two-factor challenge API is supported.');
+        }
+
         $user->loadMissing(['roles', 'permissions']);
 
         $deviceName = (string) ($request->validated('device_name') ?: 'api-client');

@@ -22,6 +22,7 @@ final class SendTestNotificationRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string', 'max:1000'],
             'data' => ['sometimes', 'array'],
+            'data.*' => ['string'],
             'image' => ['sometimes', 'nullable', 'url'],
         ];
     }
