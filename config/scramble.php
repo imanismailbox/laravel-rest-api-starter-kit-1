@@ -152,11 +152,18 @@ return [
      */
     'flatten_deep_query_parameters' => true,
 
-    'middleware' => [
-        'web',
-        'auth',
-        RestrictedDocsAccess::class,
-    ],
+    /*
+     * Set API_DOCS_ENABLED=false to remove the docs routes entirely.
+     */
+    'enabled' => (bool) env('API_DOCS_ENABLED', true),
+
+    /*
+     * Open in local. Elsewhere: browser basic-auth login with an account
+     * that has the `api_docs.view` permission (admins by default).
+     */
+    'middleware' => env('APP_ENV') === 'local'
+        ? ['web']
+        : ['web', 'throttle:10,1', 'auth.basic', RestrictedDocsAccess::class],
 
     'extensions' => [
         QueryParametersExtension::class,

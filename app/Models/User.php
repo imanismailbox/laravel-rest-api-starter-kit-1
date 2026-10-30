@@ -14,7 +14,6 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -26,10 +25,7 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Laravel\Fortify\Contracts\PasskeyUser;
-use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Laravel\Passkeys\Passkey;
 use Laravel\Sanctum\HasApiTokens;
 use Override;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -53,8 +49,6 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $two_factor_confirmed_at
  * @property-read DatabaseNotificationCollection<int, DatabaseNotification> $notifications
  * @property-read int|null $notifications_count
- * @property-read Collection<int, Passkey> $passkeys
- * @property-read int|null $passkeys_count
  *
  * @method static UserFactory factory($count = null, $state = [])
  * @method static Builder<static>|User newModelQuery()
@@ -76,7 +70,7 @@ use Spatie\Permission\Traits\HasRoles;
  */
 #[Fillable(['name', 'email', 'username', 'password', 'avatar', 'email_verified_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
+final class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
     use HasAttachment;
@@ -86,7 +80,6 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     use HasUuids;
     use LogsActivity;
     use Notifiable;
-    use PasskeyAuthenticatable;
     use SoftDeletes;
     use TwoFactorAuthenticatable;
 
@@ -108,6 +101,14 @@ final class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         $disk = (string) config('filesystems.default');
 
         return Storage::disk($disk)->url((string) $avatar);
+    }
+
+    /**
+     * Hash used in email verification links; changing the email invalidates old links.
+     */
+    public function emailVerificationHash(): string
+    {
+        return hash('sha256', $this->getEmailForVerification());
     }
 
     /**

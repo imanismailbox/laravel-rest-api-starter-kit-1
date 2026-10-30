@@ -6,32 +6,6 @@ use App\Enums\ApiErrorCode;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
 
-test('unauthenticated guests cannot access api docs and are redirected to login', function (): void {
-    $this->get('/docs/api')
-        ->assertRedirect(route('login'));
-});
-
-test('unauthenticated guests cannot access api docs json document directly', function (): void {
-    $this->get('/docs/api.json')
-        ->assertRedirect(route('login'));
-});
-
-test('authenticated users can access api docs', function (): void {
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->get('/docs/api')
-        ->assertOk();
-});
-
-test('authenticated users can access api docs json specification', function (): void {
-    $user = User::factory()->create();
-
-    $this->actingAs($user)
-        ->get('/docs/api.json')
-        ->assertOk();
-});
-
 test('health check api endpoint is publicly accessible and returns standard envelope', function (): void {
     $this->getJson(route('api.v1.health'))
         ->assertApiSuccess('API service is healthy and operational.')

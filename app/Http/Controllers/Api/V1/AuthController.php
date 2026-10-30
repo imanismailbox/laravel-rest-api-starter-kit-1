@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Actions\Auth\CompleteTwoFactorChallenge;
 use App\Actions\Auth\CreateApiToken;
 use App\Actions\Auth\DeleteAvatar;
 use App\Actions\Auth\RegisterUser;
 use App\Actions\Auth\RevokeApiToken;
+use App\Actions\Auth\StartTwoFactorChallenge;
 use App\Actions\Auth\UpdatePassword;
 use App\Actions\Auth\UpdateProfile;
 use App\Actions\Auth\UploadAvatar;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Http\Requests\Api\V1\Auth\RegisterRequest;
+use App\Http\Requests\Api\V1\Auth\TwoFactorChallengeRequest;
 use App\Http\Requests\Api\V1\Auth\UpdatePasswordRequest;
 use App\Http\Requests\Api\V1\Auth\UpdateProfileRequest;
 use App\Http\Requests\Api\V1\Auth\UploadAvatarRequest;
@@ -40,24 +43,17 @@ final class AuthController extends ApiController
         }
 
         $user = $action->handle($request->validated());
-        $user->loadMissing(['roles', 'permissions']);
 
-        $token = $tokenAction->handle($user, 'registration');
-
-        return ApiResponse::created(
-            data: [
-                'token' => $token,
-                'token_type' => 'Bearer',
-                'user' => new UserResource($user),
-            ],
-            message: 'User registered successfully.',
-        );
+        return $this->tokenResponse($tokenAction, $user, 'registration', 'User registered successfully.');
     }
 
     /**
      * Authenticate user credentials (using email or username) and issue an API token.
+     *
+     * Accounts with two-factor enabled get `two_factor: true` and a `challenge_token` instead;
+     * send it with a code to `POST /auth/two-factor-challenge` within 5 minutes.
      */
-    public function login(LoginRequest $request, CreateApiToken $action): JsonResponse
+    public function login(LoginRequest $request, CreateApiToken $action, StartTwoFactorChallenge $challenge): JsonResponse
     {
         $identifier = (string) ($request->validated('login')
             ?? $request->validated('username')
@@ -74,23 +70,34 @@ final class AuthController extends ApiController
             return ApiResponse::unauthorized('Invalid email or password.');
         }
 
-        if ($user->two_factor_secret !== null && $user->two_factor_confirmed_at !== null) {
-            return ApiResponse::forbidden('Two-factor authentication is enabled. API login is unavailable until a two-factor challenge API is supported.');
+        $deviceName = (string) ($request->validated('device_name') ?: 'api-client');
+
+        if ($user->hasEnabledTwoFactorAuthentication()) {
+            return ApiResponse::success(
+                data: [
+                    'two_factor' => true,
+                    'challenge_token' => $challenge->handle($user, $deviceName),
+                    'expires_in' => StartTwoFactorChallenge::TTL_SECONDS,
+                ],
+                message: 'Two-factor authentication code required.',
+            );
         }
 
-        $user->loadMissing(['roles', 'permissions']);
+        return $this->tokenResponse($action, $user, $deviceName, 'Access token issued successfully.');
+    }
 
-        $deviceName = (string) ($request->validated('device_name') ?: 'api-client');
-        $token = $action->handle($user, $deviceName);
-
-        return ApiResponse::created(
-            data: [
-                'token' => $token,
-                'token_type' => 'Bearer',
-                'user' => new UserResource($user),
-            ],
-            message: 'Access token issued successfully.',
+    /**
+     * Finish a two-factor login with an authenticator code or a recovery code and issue an API token.
+     */
+    public function twoFactorChallenge(TwoFactorChallengeRequest $request, CompleteTwoFactorChallenge $challenge, CreateApiToken $action): JsonResponse
+    {
+        $result = $challenge->handle(
+            token: (string) $request->validated('challenge_token'),
+            code: $request->validated('code'),
+            recoveryCode: $request->validated('recovery_code'),
         );
+
+        return $this->tokenResponse($action, $result['user'], $result['device_name'], 'Access token issued successfully.');
     }
 
     /**
@@ -189,6 +196,20 @@ final class AuthController extends ApiController
 
         return ApiResponse::success(
             message: 'Successfully logged out.',
+        );
+    }
+
+    private function tokenResponse(CreateApiToken $action, User $user, string $deviceName, string $message): JsonResponse
+    {
+        $user->loadMissing(['roles', 'permissions']);
+
+        return ApiResponse::created(
+            data: [
+                'token' => $action->handle($user, $deviceName),
+                'token_type' => 'Bearer',
+                'user' => new UserResource($user),
+            ],
+            message: $message,
         );
     }
 }

@@ -83,6 +83,7 @@ enum UserRole: string
                 'backups.view',
                 'backups.create',
                 'activity_logs.view',
+                'api_docs.view',
             ],
             self::User => [],
         };

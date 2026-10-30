@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 use App\Actions\User\UpdateUser;
 use App\Enums\UserRole;
-use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\AdminUserSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Auth\Notifications\VerifyEmail;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Facades\Password;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function (): void {
@@ -48,21 +45,6 @@ test('demo administrator seeding creates an administrator in testing and is idem
 
     $user = User::query()->where('email', 'admin@example.com')->sole();
     expect($user->hasRole(UserRole::Admin->value))->toBeTrue();
-});
-
-test('confirmed two factor accounts cannot obtain an API token using only a password', function (): void {
-    $user = User::factory()->create(['password' => 'Password123!']);
-    $user->forceFill([
-        'two_factor_secret' => encrypt('secret'),
-        'two_factor_confirmed_at' => now(),
-    ])->save();
-
-    $this->postJson(route('api.v1.auth.login'), [
-        'email' => $user->email,
-        'password' => 'Password123!',
-    ])->assertForbidden()->assertJsonPath('message', 'Two-factor authentication is enabled. API login is unavailable until a two-factor challenge API is supported.');
-
-    expect($user->tokens()->count())->toBe(0);
 });
 
 test('unconfirmed two factor setup does not block API password login', function (): void {
@@ -154,23 +136,6 @@ test('API password changes revoke every existing personal token', function (): v
     $this->withToken($token)->getJson(route('api.v1.auth.me'))->assertUnauthorized();
 });
 
-test('password reset invalidates previously issued API tokens', function (): void {
-    $user = User::factory()->create();
-    $token = $user->createToken('stolen')->plainTextToken;
-    $resetToken = Password::createToken($user);
-
-    $this->post(route('password.update'), [
-        'email' => $user->email,
-        'token' => $resetToken,
-        'password' => 'ResetPassword123!',
-        'password_confirmation' => 'ResetPassword123!',
-    ])->assertSessionHasNoErrors()->assertRedirect(route('login', absolute: false));
-
-    expect(Hash::check('ResetPassword123!', $user->fresh()->password))->toBeTrue()
-        ->and($user->tokens()->count())->toBe(0);
-    $this->withToken($token)->getJson(route('api.v1.auth.me'))->assertUnauthorized();
-});
-
 test('administrator password edits revoke tokens but unrelated edits do not', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
@@ -183,26 +148,6 @@ test('administrator password edits revoke tokens but unrelated edits do not', fu
 
     $this->putJson(route('api.v1.users.update', $target), ['password' => 'ChangedPassword123!'])->assertOk();
     expect($target->tokens()->count())->toBe(0);
-});
-
-test('web registration respects the disabled registration setting', function (): void {
-    Setting::set('allow_registration', false);
-
-    $this->post(route('register.store'), [
-        'name' => 'Blocked',
-        'email' => 'blocked@example.com',
-        'password' => 'Password123!',
-        'password_confirmation' => 'Password123!',
-    ])->assertForbidden();
-
-    $this->assertDatabaseMissing('users', ['email' => 'blocked@example.com']);
-    $this->assertGuest();
-});
-
-test('unverified accounts cannot access the web dashboard', function (): void {
-    $user = User::factory()->unverified()->create();
-
-    $this->actingAs($user)->get(route('dashboard'))->assertRedirect(route('verification.notice'));
 });
 
 test('API registration sends verification email and leaves the account unverified', function (): void {

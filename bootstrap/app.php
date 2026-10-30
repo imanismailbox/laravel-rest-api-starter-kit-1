@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\ApiErrorCode;
 use App\Http\Middleware\AccessTokenMiddleware;
 use App\Http\Middleware\EnforceTransportSecurity;
+use App\Http\Middleware\EnsureEmailVerified;
 use App\Http\Middleware\ForceJsonResponse;
 use App\Http\Middleware\LogApiRequests;
 use App\Support\ApiResponse;
@@ -26,7 +27,6 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
@@ -34,6 +34,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'pat' => AccessTokenMiddleware::class,
+            'verified.api' => EnsureEmailVerified::class,
         ]);
 
         $middleware->trustProxies(at: '*');

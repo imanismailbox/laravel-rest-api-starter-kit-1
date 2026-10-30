@@ -59,6 +59,14 @@ final class SettingSeeder extends Seeder
                 'description' => 'Enable or disable new user registration.',
             ],
             [
+                'key' => 'require_email_verification',
+                'value' => false,
+                'group' => 'auth',
+                'type' => 'boolean',
+                'is_public' => true,
+                'description' => 'Block unverified accounts from most API endpoints until they verify their email.',
+            ],
+            [
                 'key' => 'password_min_length',
                 'value' => 8,
                 'group' => 'auth',
