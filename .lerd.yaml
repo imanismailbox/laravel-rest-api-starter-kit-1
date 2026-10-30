@@ -1,0 +1,10 @@
+domains:
+  - laravel-rest-api-starter-kit
+php_version: "8.4"
+framework: laravel
+framework_version: "13"
+services:
+  - mailpit
+  - postgres
+  - redis
+  - rustfs
