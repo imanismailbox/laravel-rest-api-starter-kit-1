@@ -25,6 +25,7 @@ use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Maatwebsite\Excel\Facades\Excel;
@@ -160,7 +161,7 @@ final class UserController extends ApiController
      */
     public function import(ImportUsersRequest $request, ImportUsers $action): JsonResponse
     {
-        /** @var \Illuminate\Http\UploadedFile $file */
+        /** @var UploadedFile $file */
         $file = $request->file('file');
 
         $result = $action->handle($file);

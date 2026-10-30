@@ -9,6 +9,7 @@ use App\Query\Filters\GlobalSearchFilter;
 use App\Query\Support\QueryContext;
 use App\Query\Support\QueryDefinitionParser;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -27,19 +28,20 @@ final class QueryBuilderFactory
 
     /**
      * @param  class-string  $definition
+     * @return QueryBuilder<Model>
      */
     public static function make(string $definition, QueryContext $context): QueryBuilder
     {
         $parsed = QueryDefinitionParser::parse($definition);
 
-        /** @var class-string<\Illuminate\Database\Eloquent\Model> $modelClass */
+        /** @var class-string<Model> $modelClass */
         $modelClass = is_subclass_of($definition, BaseQueryDefinition::class)
             ? $definition::model()
             : $definition;
 
         $allowedFilters = [
             ...collect($parsed['filters'])
-                ->map(function ($filter) {
+                ->map(function ($filter): AllowedFilter {
                     $name = $filter->name;
 
                     if ($name === 'role') {
@@ -64,11 +66,11 @@ final class QueryBuilderFactory
         }
 
         // Dynamic key fields addition to allowed fields list to support relationships
-        $allowedFields = $parsed['fields']->toArray();
-        $includes = $parsed['includes']->toArray();
+        $allowedFields = $parsed['fields']->all();
+        $includes = $parsed['includes']->all();
 
         $rootColumns = self::getTableColumns($modelClass);
-        $rootKeys = array_filter($rootColumns, fn ($col) => $col === 'id' || str_ends_with($col, '_id'));
+        $rootKeys = array_filter($rootColumns, fn (string $col): bool => $col === 'id' || str_ends_with($col, '_id'));
         foreach ($rootKeys as $key) {
             $allowedFields[] = $key;
         }
@@ -77,18 +79,19 @@ final class QueryBuilderFactory
             $relatedModelClass = self::resolveRelatedModel($modelClass, $include);
             if ($relatedModelClass) {
                 $relatedColumns = self::getTableColumns($relatedModelClass);
-                $relatedKeys = array_filter($relatedColumns, fn ($col) => $col === 'id' || str_ends_with($col, '_id'));
+                $relatedKeys = array_filter($relatedColumns, fn (string $col): bool => $col === 'id' || str_ends_with($col, '_id'));
                 foreach ($relatedKeys as $key) {
                     $allowedFields[] = "{$include}.{$key}";
                 }
             }
         }
+
         $allowedFields = array_unique($allowedFields);
 
         // Modify requested fields to always select primary and foreign keys if allowed
         $request = $context->toRequest();
         $fields = $request->query('fields');
-        if (is_array($fields) && ! empty($fields)) {
+        if (is_array($fields) && $fields !== []) {
             $modifiedFields = $fields;
             $tableName = (new $modelClass)->getTable();
 
@@ -97,7 +100,7 @@ final class QueryBuilderFactory
                     continue;
                 }
 
-                $cols = array_map('trim', explode(',', $columns));
+                $cols = array_map(trim(...), explode(',', $columns));
 
                 if ($resource === $tableName) {
                     foreach ($rootKeys as $key) {
@@ -109,7 +112,7 @@ final class QueryBuilderFactory
                     $relatedModelClass = self::resolveRelatedModel($modelClass, $resource);
                     if ($relatedModelClass) {
                         $relatedColumns = self::getTableColumns($relatedModelClass);
-                        $relatedKeys = array_filter($relatedColumns, fn ($col) => $col === 'id' || str_ends_with($col, '_id'));
+                        $relatedKeys = array_filter($relatedColumns, fn (string $col): bool => $col === 'id' || str_ends_with($col, '_id'));
                         foreach ($relatedKeys as $key) {
                             $fullKey = "{$resource}.{$key}";
                             if (in_array($fullKey, $allowedFields, true) && ! in_array($key, $cols, true)) {
@@ -121,12 +124,13 @@ final class QueryBuilderFactory
 
                 $modifiedFields[$resource] = implode(',', $cols);
             }
+
             $request->query->set('fields', $modifiedFields);
         }
 
         $query = QueryBuilder::for($modelClass, $request);
 
-        if (! empty($allowedFields)) {
+        if ($allowedFields !== []) {
             $query->allowedFields(...$allowedFields);
         }
 
@@ -141,10 +145,11 @@ final class QueryBuilderFactory
                     $isRelation = false;
                     break;
                 }
+
                 try {
                     $relation = (new $currentModel)->$part();
                     if ($relation instanceof Relation) {
-                        $currentModel = get_class($relation->getRelated());
+                        $currentModel = $relation->getRelated()::class;
                     } else {
                         $isRelation = false;
                         break;
@@ -172,13 +177,13 @@ final class QueryBuilderFactory
 
         return $query
             ->allowedFilters(...$allowedFilters)
-            ->allowedSorts(...$parsed['sorts']->toArray())
+            ->allowedSorts(...$parsed['sorts']->all())
             ->allowedIncludes(...$allowedIncludes)
             ->defaultSort($parsed['default_sort']);
     }
 
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
+     * @param  class-string<Model>  $modelClass
      * @return array<int, string>
      */
     private static function getTableColumns(string $modelClass): array
@@ -193,8 +198,8 @@ final class QueryBuilderFactory
     }
 
     /**
-     * @param  class-string<\Illuminate\Database\Eloquent\Model>  $modelClass
-     * @return class-string<\Illuminate\Database\Eloquent\Model>|null
+     * @param  class-string<Model>  $modelClass
+     * @return class-string<Model>|null
      */
     private static function resolveRelatedModel(string $modelClass, string $relationPath): ?string
     {
@@ -205,10 +210,11 @@ final class QueryBuilderFactory
             if (! method_exists($currentModel, $part)) {
                 return null;
             }
+
             try {
                 $relation = (new $currentModel)->$part();
                 if ($relation instanceof Relation) {
-                    $currentModel = get_class($relation->getRelated());
+                    $currentModel = $relation->getRelated()::class;
                 } else {
                     return null;
                 }

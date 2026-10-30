@@ -30,9 +30,7 @@ trait HasAttachment
                 return;
             }
 
-            /** @var MorphToMany $relation */
-            $relation = $model->morphToMany(Attachment::class, 'attachable', 'attachables');
-            $relation->detach();
+            $model->morphToMany(Attachment::class, 'attachable', 'attachables')->detach();
         });
     }
 
@@ -144,15 +142,15 @@ trait HasAttachment
         ?string $disk = null,
         ?string $userId = null
     ): Attachment {
-        /** @var CreateAttachment $action */
-        $action = app(CreateAttachment::class);
+        $action = resolve(CreateAttachment::class);
+        $authId = auth()->id();
 
         $attachment = $action->handle(
             file: $file,
             description: $description,
             isPrivate: $isPrivate,
             disk: $disk,
-            userId: $userId ?? (auth()->check() ? auth()->id() : null),
+            userId: $userId ?? ($authId !== null ? (string) $authId : null),
         );
 
         $this->attachAttachment($attachment);

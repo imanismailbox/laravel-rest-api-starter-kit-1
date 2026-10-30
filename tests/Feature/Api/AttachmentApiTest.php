@@ -96,7 +96,7 @@ test('upload image triggers auto-resize and dimensions check', function (): void
 
 test('standalone ImageService can be used for direct model attributes like featured image or avatar thumbnail', function (): void {
     /** @var ImageService $imageService */
-    $imageService = app(ImageService::class);
+    $imageService = resolve(ImageService::class);
     $file = UploadedFile::fake()->image('banner.jpg', 2200, 1200);
 
     // 1. Resize & store
@@ -123,7 +123,7 @@ test('image storage derives the output format from JPEG contents', function (str
     $source = UploadedFile::fake()->image('photo.jpg', 600, 400);
     $file = new UploadedFile($source->getPathname(), 'photo.jfif', 'image/jpeg', null, true);
 
-    $path = app(ImageService::class)->{$method}($file);
+    $path = resolve(ImageService::class)->{$method}($file);
     $image = getimagesize(Storage::disk('public')->path($path));
 
     expect(pathinfo($path, PATHINFO_EXTENSION))->toBe('jpg')
@@ -187,6 +187,7 @@ test('user can download attachment file', function (): void {
     $response = $this->get(route('api.v1.attachments.download', $attachment));
 
     $response->assertOk();
+
     expect($response->headers->get('content-disposition'))->toContain('invoice.pdf');
 });
 

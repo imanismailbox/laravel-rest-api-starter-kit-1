@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\AttachmentFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,34 +15,25 @@ use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 use Throwable;
 
+/**
+ * @property string|null $user_id Declared here because the migration picks its type from config('attachment.user_key_type').
+ */
+#[Fillable([
+    'user_id',
+    'name',
+    'description',
+    'path',
+    'disk',
+    'mime',
+    'size',
+    'is_private',
+])]
 final class Attachment extends Model
 {
     /** @use HasFactory<AttachmentFactory> */
     use HasFactory;
 
     use LogsActivity;
-
-    /**
-     * @var list<string>
-     */
-    protected $fillable = [
-        'user_id',
-        'name',
-        'description',
-        'path',
-        'disk',
-        'mime',
-        'size',
-        'is_private',
-    ];
-
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'size' => 'integer',
-        'is_private' => 'boolean',
-    ];
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -53,6 +45,9 @@ final class Attachment extends Model
 
     /**
      * The user who uploaded this attachment.
+     */
+    /**
+     * @return BelongsTo<Model, $this>
      */
     public function uploader(): BelongsTo
     {
@@ -66,6 +61,7 @@ final class Attachment extends Model
      * Polymorphic relation to an attachable model class.
      *
      * @param  class-string<Model>  $modelClass
+     * @return MorphToMany<Model, $this>
      */
     public function attachables(string $modelClass): MorphToMany
     {
@@ -75,7 +71,7 @@ final class Attachment extends Model
     /**
      * Get accessible URL for the attachment file.
      */
-    public function url(): ?string
+    public function url(): string
     {
         $disk = $this->disk ?: (string) config('filesystems.default');
 
@@ -200,5 +196,16 @@ final class Attachment extends Model
         }
 
         return false;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'size' => 'integer',
+            'is_private' => 'boolean',
+        ];
     }
 }

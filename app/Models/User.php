@@ -145,7 +145,7 @@ final class User extends Authenticatable implements MustVerifyEmail
         // Attachment rows null their user_id on delete, so remove the user's files first.
         self::forceDeleting(static function (User $user): void {
             Attachment::query()->where('user_id', $user->id)
-                ->each(static fn (Attachment $attachment): bool => app(DeleteAttachment::class)->handle($attachment));
+                ->each(static fn (Attachment $attachment): bool => resolve(DeleteAttachment::class)->handle($attachment));
 
             $avatar = $user->avatar;
             if ($avatar && ! str_starts_with($avatar, 'http')) {

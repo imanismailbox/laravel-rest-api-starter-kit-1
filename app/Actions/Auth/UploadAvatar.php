@@ -35,15 +35,15 @@ final readonly class UploadAvatar
                 $user->update(['avatar' => $path]);
 
                 if ($oldPath && ! str_starts_with($oldPath, 'http')) {
-                    DB::afterCommit(fn () => rescue(fn () => $this->imageService->delete($oldPath, $disk), report: true));
+                    DB::afterCommit(fn () => rescue(fn (): bool => $this->imageService->delete($oldPath, $disk), report: true));
                 }
 
                 return $user;
             });
-        } catch (Throwable $exception) {
-            rescue(fn () => $this->imageService->delete($path, $disk), report: true);
+        } catch (Throwable $throwable) {
+            rescue(fn (): bool => $this->imageService->delete($path, $disk), report: true);
 
-            throw $exception;
+            throw $throwable;
         }
     }
 }

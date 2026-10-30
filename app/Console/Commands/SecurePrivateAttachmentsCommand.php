@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Models\Attachment;
+use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
+#[Description('Move legacy private attachments off the public disk')]
+#[Signature('attachments:secure-private')]
 final class SecurePrivateAttachmentsCommand extends Command
 {
-    protected $signature = 'attachments:secure-private';
-
-    protected $description = 'Move legacy private attachments off the public disk';
-
     public function handle(): int
     {
         $public = Storage::disk('public');
@@ -46,6 +46,7 @@ final class SecurePrivateAttachmentsCommand extends Command
                         || $private->size($attachment->path) !== $public->size($attachment->path)) {
                         throw new RuntimeException("Private copy of attachment {$attachment->id} is missing or incomplete; public original retained.");
                     }
+
                     if (! $public->delete($attachment->path)) {
                         throw new RuntimeException("Cannot remove public copy of attachment {$attachment->id}; rerun this command.");
                     }

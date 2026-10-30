@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Actions\Auth;
 
 use App\Models\User;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Contracts\TwoFactorAuthenticationProvider;
 use Laravel\Fortify\Fortify;
@@ -41,7 +41,7 @@ final readonly class CompleteTwoFactorChallenge
             $challenge['attempts']++;
 
             if ($challenge['attempts'] < self::MAX_ATTEMPTS) {
-                Cache::put($key, $challenge, Carbon::createFromTimestamp($challenge['expires_at']));
+                Cache::put($key, $challenge, Date::createFromTimestamp($challenge['expires_at']));
             }
 
             throw $this->invalid();

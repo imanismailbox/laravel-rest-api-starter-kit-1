@@ -48,10 +48,9 @@ final class UploadAttachmentRequest extends FormRequest
     public function uploadedFiles(): array
     {
         if ($this->hasFile('files')) {
-            /** @var array<int, UploadedFile> $files */
             $files = $this->file('files');
 
-            return array_filter($files, fn ($file): bool => $file instanceof UploadedFile);
+            return is_array($files) ? array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile)) : [];
         }
 
         if ($this->hasFile('file')) {

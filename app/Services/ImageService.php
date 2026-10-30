@@ -11,7 +11,7 @@ use Intervention\Image\Drivers\Gd\Driver;
 use Intervention\Image\ImageManager;
 use RuntimeException;
 
-final class ImageService
+final readonly class ImageService
 {
     private ImageManager $manager;
 
@@ -48,9 +48,7 @@ final class ImageService
         $filePath = mb_rtrim($directory, '/').'/'.$fileName;
 
         if (! $this->isResizable($file)) {
-            if (Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName) === false) {
-                throw new RuntimeException('Image could not be stored.');
-            }
+            throw_if(Storage::disk($targetDisk)->putFileAs($directory, $file, $fileName) === false, RuntimeException::class, 'Image could not be stored.');
 
             return $filePath;
         }
@@ -62,9 +60,7 @@ final class ImageService
         }
 
         $encoded = $image->encodeUsingFileExtension($extension, quality: $quality);
-        if (! Storage::disk($targetDisk)->put($filePath, (string) $encoded)) {
-            throw new RuntimeException('Image could not be stored.');
-        }
+        throw_unless(Storage::disk($targetDisk)->put($filePath, (string) $encoded), RuntimeException::class, 'Image could not be stored.');
 
         return $filePath;
     }
@@ -86,11 +82,10 @@ final class ImageService
 
         $image = $this->manager->decode($file->getRealPath() ?: $file->getPathname());
         $image->cover(width: $size, height: $size);
+
         $encoded = $image->encodeUsingFileExtension($extension, quality: $quality);
 
-        if (! Storage::disk($targetDisk)->put($filePath, (string) $encoded)) {
-            throw new RuntimeException('Thumbnail could not be stored.');
-        }
+        throw_unless(Storage::disk($targetDisk)->put($filePath, (string) $encoded), RuntimeException::class, 'Thumbnail could not be stored.');
 
         return $filePath;
     }

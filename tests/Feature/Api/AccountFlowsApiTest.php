@@ -8,6 +8,7 @@ use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Contracts\Auth\Factory;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -30,7 +31,7 @@ function enableTwoFactor(User $user): array
     Sanctum::actingAs($user);
     $setup = test()->postJson(route('api.v1.auth.two-factor.enable'), ['current_password' => 'Password123!'])->assertOk();
     test()->postJson(route('api.v1.auth.two-factor.confirm'), ['code' => currentTwoFactorCode($user)])->assertOk();
-    app('auth')->forgetGuards();
+    resolve(Factory::class)->forgetGuards();
 
     return $setup->json('data.recovery_codes');
 }
@@ -189,6 +190,7 @@ test('two factor challenges are single use and lock after five wrong codes', fun
     foreach (range(1, 5) as $attempt) {
         $this->postJson(route('api.v1.auth.two-factor.challenge'), ['challenge_token' => $token, 'code' => '000000'])->assertUnprocessable();
     }
+
     $this->postJson(route('api.v1.auth.two-factor.challenge'), ['challenge_token' => $token, 'code' => currentTwoFactorCode($user)])->assertUnprocessable();
     expect($user->tokens()->count())->toBe(1);
 });
@@ -226,6 +228,7 @@ test('api docs require basic auth with the docs permission outside local', funct
     $this->seed(RolesAndPermissionsSeeder::class);
     $admin = User::factory()->create(['password' => 'Password123!']);
     $admin->assignRole(UserRole::Admin->value);
+
     $user = User::factory()->create(['password' => 'Password123!']);
 
     $this->get('/docs/api')->assertUnauthorized();

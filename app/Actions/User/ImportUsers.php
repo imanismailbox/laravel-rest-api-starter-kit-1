@@ -12,9 +12,13 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
+use Maatwebsite\Excel\Concerns\ToArray;
+use Maatwebsite\Excel\Concerns\WithChunkReading;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use RuntimeException;
+use Spatie\Permission\Models\Role;
 use ZipArchive;
 
 final readonly class ImportUsers
@@ -37,9 +41,8 @@ final readonly class ImportUsers
                     $expandedSize = 0;
                     for ($i = 0; $i < $archive->numFiles; $i++) {
                         $entry = $archive->statIndex($i);
-                        if ($entry === false) {
-                            throw new RuntimeException('Cannot read workbook archive metadata.');
-                        }
+                        throw_if($entry === false, RuntimeException::class, 'Cannot read workbook archive metadata.');
+
                         $expandedSize += $entry['size'];
                         if ($expandedSize > 50 * 1024 * 1024) {
                             $results['errors'][] = 'The unpacked workbook must not exceed 50 MB.';
@@ -66,7 +69,7 @@ final readonly class ImportUsers
                 return $results;
             }
 
-            $import = new class implements \Maatwebsite\Excel\Concerns\ToArray, \Maatwebsite\Excel\Concerns\WithChunkReading, \Maatwebsite\Excel\Concerns\WithMultipleSheets
+            $import = new class implements ToArray, WithChunkReading, WithMultipleSheets
             {
                 /** @var array<int, array<int, mixed>> */
                 public array $rows = [];
@@ -89,8 +92,8 @@ final readonly class ImportUsers
 
             Excel::import($import, $file);
             $rows = $import->rows;
-        } catch (Exception $e) {
-            $results['errors'][] = 'Failed to read spreadsheet: '.$e->getMessage();
+        } catch (Exception $exception) {
+            $results['errors'][] = 'Failed to read spreadsheet: '.$exception->getMessage();
 
             return $results;
         }
@@ -151,8 +154,8 @@ final readonly class ImportUsers
                 DB::transaction(function () use ($name, $email, $username, $password, $rolesStr, &$results): void {
                     $existingUser = User::withTrashed()->where('email', $email)->lockForUpdate()->first();
 
-                    $roles = $rolesStr ? array_filter(array_map('trim', explode(',', $rolesStr))) : [];
-                    $validRoles = \Spatie\Permission\Models\Role::whereIn('name', $roles)->pluck('name')->all();
+                    $roles = $rolesStr ? array_filter(array_map(trim(...), explode(',', $rolesStr))) : [];
+                    $validRoles = Role::query()->whereIn('name', $roles)->pluck('name')->all();
                     Gate::authorize('grant-roles', [$validRoles]);
 
                     if ($existingUser) {

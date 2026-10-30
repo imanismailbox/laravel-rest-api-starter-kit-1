@@ -14,7 +14,7 @@ final readonly class CreateRole
     /**
      * Create a new role and optionally sync permissions.
      *
-     * @param  array{name: string, guard_name?: ?string, permissions?: array<int, string>}  $data
+     * @param  array<string, mixed>  $data
      */
     public function handle(array $data): Role
     {
@@ -23,8 +23,8 @@ final readonly class CreateRole
         return DB::transaction(function () use ($data): Role {
             /** @var Role $role */
             $role = Role::query()->create([
-                'name' => $data['name'],
-                'guard_name' => $data['guard_name'] ?? 'web',
+                'name' => (string) $data['name'],
+                'guard_name' => is_string($data['guard_name'] ?? null) ? $data['guard_name'] : 'web',
             ]);
 
             if (isset($data['permissions']) && is_array($data['permissions'])) {

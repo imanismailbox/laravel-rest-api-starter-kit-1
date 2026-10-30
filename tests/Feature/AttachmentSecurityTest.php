@@ -10,6 +10,7 @@ use App\Models\Attachment;
 use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -116,11 +117,11 @@ test('attachment description matches database length', function (): void {
 test('avatar write failure retains the original image and path', function (): void {
     $this->owner->update(['avatar' => 'avatars/old.jpg']);
     Storage::disk('public')->put('avatars/old.jpg', 'old-image');
-    $disk = Mockery::mock(Illuminate\Filesystem\FilesystemAdapter::class);
+    $disk = Mockery::mock(FilesystemAdapter::class);
     $disk->shouldReceive('put')->once()->andReturn(false);
     Storage::shouldReceive('disk')->with('public')->andReturn($disk);
 
-    expect(fn () => app(UploadAvatar::class)->handle($this->owner, UploadedFile::fake()->image('new.jpg')))
+    expect(fn () => resolve(UploadAvatar::class)->handle($this->owner, UploadedFile::fake()->image('new.jpg')))
         ->toThrow(RuntimeException::class, 'Thumbnail could not be stored.');
     expect($this->owner->fresh()->avatar)->toBe('avatars/old.jpg');
 });
@@ -129,17 +130,15 @@ test('avatar database failure preserves old file and cleans up replacement', fun
     $this->owner->update(['avatar' => 'avatars/old.jpg']);
     Storage::disk('public')->put('avatars/old.jpg', 'old-image');
     User::updating(function (User $user): void {
-        if ($user->isDirty('avatar')) {
-            throw new RuntimeException('Database unavailable');
-        }
+        throw_if($user->isDirty('avatar'), RuntimeException::class, 'Database unavailable');
     });
 
-    expect(fn () => app(UploadAvatar::class)->handle($this->owner, UploadedFile::fake()->image('new.jpg')))
+    expect(fn () => resolve(UploadAvatar::class)->handle($this->owner, UploadedFile::fake()->image('new.jpg')))
         ->toThrow(RuntimeException::class, 'Database unavailable');
     expect($this->owner->fresh()->avatar)->toBe('avatars/old.jpg');
     expect(Storage::disk('public')->allFiles('avatars'))->toBe(['avatars/old.jpg']);
 
-    expect(fn () => app(DeleteAvatar::class)->handle($this->owner))->toThrow(RuntimeException::class);
+    expect(fn () => resolve(DeleteAvatar::class)->handle($this->owner))->toThrow(RuntimeException::class);
     Storage::disk('public')->assertExists('avatars/old.jpg');
 });
 
@@ -148,7 +147,7 @@ test('attachment database failures remove newly stored files', function (): void
         throw new RuntimeException('Database unavailable');
     });
 
-    expect(fn () => app(CreateAttachment::class)->handle(
+    expect(fn () => resolve(CreateAttachment::class)->handle(
         UploadedFile::fake()->create('new.pdf', 1, 'application/pdf'),
         userId: $this->owner->id,
     ))->toThrow(RuntimeException::class, 'Database unavailable');

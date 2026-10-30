@@ -9,6 +9,7 @@ use App\Http\Resources\ActivityLogResource;
 use App\Query\Definitions\ActivityLogQueryDefinition;
 use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Spatie\Activitylog\Models\Activity;
@@ -48,10 +49,14 @@ final class ActivityLogController extends ApiController
     /**
      * Eager load relations on activity log queries to eliminate N+1 queries.
      *
+     * @param  QueryBuilder<Model>  $query
      * @param  class-string  $definition
+     * @return QueryBuilder<Model>
      */
     protected function augmentIndexQuery(QueryBuilder $query, string $definition, Request $request): QueryBuilder
     {
-        return $query->with(['causer', 'subject']);
+        $query->getEloquentBuilder()->with(['causer', 'subject']);
+
+        return $query;
     }
 }

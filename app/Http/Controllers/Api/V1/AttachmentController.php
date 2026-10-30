@@ -15,7 +15,6 @@ use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 #[Group('Attachment')]
@@ -37,7 +36,6 @@ final class AttachmentController extends ApiController
             foreach ($uploadedFiles as $file) {
                 $attachments->push($action->handle(
                     file: $file,
-                    name: null,
                     description: $request->validated('description'),
                     isPrivate: $isPrivate,
                     userId: $userId,
@@ -84,7 +82,7 @@ final class AttachmentController extends ApiController
     /**
      * Download attachment file.
      */
-    public function download(Attachment $attachment, DownloadAttachment $action): BinaryFileResponse|StreamedResponse
+    public function download(Attachment $attachment, DownloadAttachment $action): StreamedResponse
     {
         Gate::authorize('view', $attachment);
 

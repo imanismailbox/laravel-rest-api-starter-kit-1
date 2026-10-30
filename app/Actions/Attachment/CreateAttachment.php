@@ -31,6 +31,7 @@ final readonly class CreateAttachment
         if ($isPrivate && ($targetDisk === 'public' || config("filesystems.disks.{$targetDisk}.visibility") === 'public')) {
             $targetDisk = 'local';
         }
+
         $directory = (string) config('attachment.directory', 'attachments');
         $dateFolder = $directory.'/'.now()->format('Y/m');
 
@@ -56,9 +57,7 @@ final readonly class CreateAttachment
             $randomName = Str::uuid()->toString().'.'.$extension;
             $relativePath = $dateFolder.'/'.$randomName;
 
-            if (Storage::disk($targetDisk)->putFileAs($dateFolder, $file, $randomName) === false) {
-                throw new RuntimeException('Attachment could not be stored.');
-            }
+            throw_if(Storage::disk($targetDisk)->putFileAs($dateFolder, $file, $randomName) === false, RuntimeException::class, 'Attachment could not be stored.');
         }
 
         $fileSize = (int) (Storage::disk($targetDisk)->size($relativePath) ?: $file->getSize() ?: 0);
@@ -88,7 +87,7 @@ final readonly class CreateAttachment
                     'is_private' => $isPrivate,
                 ]);
 
-                if ($attachable !== null) {
+                if ($attachable instanceof Model) {
                     if (method_exists($attachable, 'attachAttachment')) {
                         $attachable->attachAttachment($attachment);
                     } else {
@@ -98,10 +97,10 @@ final readonly class CreateAttachment
 
                 return $attachment;
             });
-        } catch (Throwable $exception) {
+        } catch (Throwable $throwable) {
             Storage::disk($targetDisk)->delete($relativePath);
 
-            throw $exception;
+            throw $throwable;
         }
     }
 }

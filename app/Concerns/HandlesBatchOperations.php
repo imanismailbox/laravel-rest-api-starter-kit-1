@@ -6,9 +6,10 @@ namespace App\Concerns;
 
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 trait HandlesBatchOperations
@@ -31,7 +32,7 @@ trait HandlesBatchOperations
             ->count());
 
         $modelName = class_basename($instance);
-        $plural = \Illuminate\Support\Str::plural(\Illuminate\Support\Str::lower($modelName));
+        $plural = Str::plural(Str::lower($modelName));
 
         return ApiResponse::success(
             data: ['deleted_count' => $deletedCount],
@@ -50,11 +51,9 @@ trait HandlesBatchOperations
         $instance = $this->resolveBatchModel($model);
 
         $restoredCount = DB::transaction(function () use ($instance, $ids): int {
-            $query = $instance->newQuery();
-
-            if (in_array(SoftDeletes::class, class_uses_recursive($instance), true)) {
-                $query->onlyTrashed();
-            }
+            $query = method_exists($instance, 'getQualifiedDeletedAtColumn')
+                ? $instance->newQueryWithoutScope(SoftDeletingScope::class)->whereNotNull($instance->getQualifiedDeletedAtColumn())
+                : $instance->newQuery();
 
             return $query->whereIn($instance->getKeyName(), $ids)
                 ->get()
@@ -80,16 +79,12 @@ trait HandlesBatchOperations
         $instance = $this->resolveBatchModel($model);
 
         $deletedCount = DB::transaction(function () use ($instance, $ids): int {
-            $query = $instance->newQuery();
-
-            if (in_array(SoftDeletes::class, class_uses_recursive($instance), true)) {
-                $query->withTrashed();
-            }
+            $query = $instance->newQueryWithoutScope(SoftDeletingScope::class);
 
             return $query->whereIn($instance->getKeyName(), $ids)
                 ->get()
                 ->each(fn (Model $item) => $this->authorizeBatchItem($item))
-                ->filter(fn (Model $item): bool => (bool) (method_exists($item, 'forceDelete') ? $item->forceDelete() : $item->delete()))
+                ->filter(fn (Model $item): bool => (bool) $item->forceDelete())
                 ->count();
         });
 

@@ -41,6 +41,7 @@ final readonly class QueryContext
         foreach ($directFilters as $filterKey) {
             $rules[$filterKey] = ['sometimes', 'nullable', 'string'];
         }
+
         Validator::make($params, $rules)->validate();
 
         // Normalize only validated query params for backward compatibility.

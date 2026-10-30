@@ -7,6 +7,7 @@ use App\Enums\UserRole;
 use App\Models\User;
 use Database\Seeders\AdminUserSeeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Sanctum\Sanctum;
@@ -30,6 +31,7 @@ test('demo administrator seeding is disabled outside local and testing', functio
 test('demo administrator seeding does not promote or overwrite an existing account', function (): void {
     $user = User::factory()->create(['email' => 'admin@example.com', 'name' => 'Ordinary User']);
     $user->assignRole(UserRole::User->value);
+
     $password = $user->password;
 
     $this->seed(AdminUserSeeder::class);
@@ -77,8 +79,10 @@ test('limited user delegates cannot assign administrator roles', function (): vo
 test('limited edit delegates cannot change administrator passwords or remove administrator roles', function (): void {
     $delegate = User::factory()->create();
     $delegate->givePermissionTo('users.edit');
+
     $admin = User::factory()->create();
     $admin->assignRole('admin');
+
     $oldPassword = $admin->password;
     Sanctum::actingAs($delegate);
 
@@ -92,13 +96,14 @@ test('limited edit delegates cannot change administrator passwords or remove adm
 test('administrator protection checks current roles rather than a stale model', function (): void {
     $delegate = User::factory()->create();
     $delegate->givePermissionTo('users.edit');
+
     $target = User::factory()->create();
     $target->load('roles');
     User::query()->findOrFail($target->id)->assignRole('admin');
     Sanctum::actingAs($delegate);
 
-    expect(fn () => app(UpdateUser::class)->handle($target, ['password' => 'TakenOver123!']))
-        ->toThrow(Illuminate\Auth\Access\AuthorizationException::class);
+    expect(fn () => resolve(UpdateUser::class)->handle($target, ['password' => 'TakenOver123!']))
+        ->toThrow(AuthorizationException::class);
     expect($target->fresh()->password)->toBe($target->password);
 });
 
@@ -139,6 +144,7 @@ test('API password changes revoke every existing personal token', function (): v
 test('administrator password edits revoke tokens but unrelated edits do not', function (): void {
     $admin = User::factory()->create();
     $admin->assignRole('admin');
+
     $target = User::factory()->create();
     $target->createToken('existing');
     Sanctum::actingAs($admin);

@@ -53,7 +53,7 @@ test('null clears a typed setting without changing its type', function (string $
     $this->putJson(route('api.v1.settings.update'), ['nullable' => null])->assertOk();
 
     expect(Setting::get('nullable', 'fallback'))->toBeNull()
-        ->and(Setting::where('key', 'nullable')->first()->type)->toBe($type);
+        ->and(Setting::query()->where('key', 'nullable')->first()->type)->toBe($type);
 })->with(['boolean', 'integer', 'float', 'string', 'array', 'json']);
 
 test('direct setting callers normalize boolean strings and preserve argument order', function (): void {
@@ -69,7 +69,7 @@ test('direct setting callers normalize boolean strings and preserve argument ord
 
 test('direct setting callers reject malformed typed values', function (string $type, mixed $value): void {
     Setting::set('target', null, type: $type);
-    expect(fn () => Setting::set('target', $value))->toThrow(InvalidArgumentException::class);
+    expect(fn (): Setting => Setting::set('target', $value))->toThrow(InvalidArgumentException::class);
     expect(Setting::get('target'))->toBeNull();
 })->with([
     ['boolean', 'invalid'], ['boolean', ''], ['boolean', '   '], ['integer', 'oops'], ['float', []],
@@ -79,7 +79,7 @@ test('direct setting callers reject malformed typed values', function (string $t
 test('settings database changes are immediately visible', function (): void {
     Setting::set('visible', 'old', isPublic: true);
 
-    Setting::where('key', 'visible')->update(['value' => 'new', 'is_public' => false]);
+    Setting::query()->where('key', 'visible')->update(['value' => 'new', 'is_public' => false]);
 
     expect(Setting::get('visible'))->toBe('new')
         ->and(Setting::get('missing', 'fallback'))->toBe('fallback')

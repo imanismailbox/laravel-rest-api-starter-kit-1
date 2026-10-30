@@ -9,8 +9,10 @@ use App\Query\Builders\QueryBuilderFactory;
 use App\Query\Support\QueryContext;
 use App\Query\Support\QueryDefinitionParser;
 use App\Support\ApiResponse;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 use Spatie\QueryBuilder\QueryBuilder;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -25,7 +27,7 @@ trait HandlesApiRequest
         $parsed = QueryDefinitionParser::parse($definition);
 
         if ($context->wantsExport() && ! $parsed['disable_export']) {
-            return app(DispatchExport::class)->handle($definition, $context);
+            return resolve(DispatchExport::class)->handle($definition, $context);
         }
 
         $resourceClass = $this->resolveResourceClass();
@@ -67,7 +69,7 @@ trait HandlesApiRequest
      */
     protected function resolveResourceClass(): string
     {
-        if (property_exists($this, 'resource') && is_string($this->resource)) {
+        if (property_exists($this, 'resource') && is_string($this->resource) && is_a($this->resource, JsonResource::class, true)) {
             return $this->resource;
         }
 
@@ -84,13 +86,15 @@ trait HandlesApiRequest
         }
 
         $base = str_replace('QueryDefinition', '', class_basename($definition));
-        $plural = \Illuminate\Support\Str::plural(\Illuminate\Support\Str::headline($base));
+        $plural = Str::plural(Str::headline($base));
 
         return "{$plural} retrieved successfully.";
     }
 
     /**
+     * @param  QueryBuilder<Model>  $query
      * @param  class-string  $definition
+     * @return QueryBuilder<Model>
      */
     protected function augmentIndexQuery(QueryBuilder $query, string $definition, Request $request): QueryBuilder
     {

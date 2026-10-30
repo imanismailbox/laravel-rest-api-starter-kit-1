@@ -39,7 +39,7 @@ test('registering existing fcm token updates ownership without creating duplicat
     $otherUser = User::factory()->create();
     $otherUser->registerFcmToken('shared_token_xyz', 'android', 'Old Device');
 
-    expect(FcmToken::where('token', 'shared_token_xyz')->first()->user_id)->toBe($otherUser->id);
+    expect(FcmToken::query()->where('token', 'shared_token_xyz')->first()->user_id)->toBe($otherUser->id);
 
     // Current user registers same token (e.g. user logged in on same device)
     $this->postJson(route('api.v1.fcm.tokens.store'), [
@@ -48,8 +48,8 @@ test('registering existing fcm token updates ownership without creating duplicat
         'device_name' => 'New Device',
     ])->assertApiSuccess('Device token registered successfully.', 201);
 
-    expect(FcmToken::where('token', 'shared_token_xyz')->count())->toBe(1)
-        ->and(FcmToken::where('token', 'shared_token_xyz')->first()->user_id)->toBe($this->user->id);
+    expect(FcmToken::query()->where('token', 'shared_token_xyz')->count())->toBe(1)
+        ->and(FcmToken::query()->where('token', 'shared_token_xyz')->first()->user_id)->toBe($this->user->id);
 });
 
 test('user can list their registered fcm tokens', function (): void {
@@ -89,11 +89,9 @@ test('user can dispatch a test push notification', function (): void {
     Notification::assertSentTo(
         $this->user,
         GenericFcmNotification::class,
-        function (GenericFcmNotification $notification): bool {
-            return $notification->title === 'Halo dari Server!'
-                && $notification->body === 'Ini adalah notifikasi uji coba.'
-                && $notification->data['order_id'] === '99';
-        }
+        fn (GenericFcmNotification $notification): bool => $notification->title === 'Halo dari Server!'
+            && $notification->body === 'Ini adalah notifikasi uji coba.'
+            && $notification->data['order_id'] === '99'
     );
 });
 
@@ -113,7 +111,7 @@ test('generic FCM notification builds the actual channel message', function (): 
             'image' => 'https://example.com/order.png',
         ],
     ]);
-    expect((new GenericFcmNotification('Title', 'Body'))->toFcm($this->user)->toArray())
+    expect(new GenericFcmNotification('Title', 'Body')->toFcm($this->user)->toArray())
         ->toBe(['notification' => ['title' => 'Title', 'body' => 'Body']]);
 });
 

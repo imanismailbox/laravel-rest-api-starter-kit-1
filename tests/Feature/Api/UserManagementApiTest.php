@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\UserRole;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Http\UploadedFile;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function (): void {
@@ -186,13 +187,14 @@ test('can export users to spreadsheet', function (): void {
     $response = $this->get(route('api.v1.users.index', ['export' => 'true']));
 
     $response->assertOk();
+
     expect($response->headers->get('content-type'))
         ->toContain('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
 });
 
 test('can bulk import users from spreadsheet', function (): void {
     $csvContent = "Name,Email,Username,Role,Password\nJohn Doe,john.imported@example.com,johndoe,admin,Password123!\nJane Smith,jane.imported@example.com,janesmith,admin,Password123!\n";
-    $file = Illuminate\Http\UploadedFile::fake()->createWithContent('users.csv', $csvContent);
+    $file = UploadedFile::fake()->createWithContent('users.csv', $csvContent);
 
     $response = $this->postJson(route('api.v1.users.import'), [
         'file' => $file,

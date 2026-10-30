@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\SettingFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,31 +13,20 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use JsonException;
 
+#[Fillable([
+    'key',
+    'value',
+    'group',
+    'type',
+    'is_public',
+    'description',
+])]
 final class Setting extends Model
 {
     /** @use HasFactory<SettingFactory> */
     use HasFactory;
 
     use HasUuids;
-
-    /**
-     * @var list<string>
-     */
-    protected $fillable = [
-        'key',
-        'value',
-        'group',
-        'type',
-        'is_public',
-        'description',
-    ];
-
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'is_public' => 'boolean',
-    ];
 
     /**
      * Auto-detect setting type based on variable type.
@@ -46,12 +36,15 @@ final class Setting extends Model
         if (is_bool($value)) {
             return 'boolean';
         }
+
         if (is_int($value)) {
             return 'integer';
         }
+
         if (is_float($value)) {
             return 'float';
         }
+
         if (is_array($value)) {
             return 'array';
         }
@@ -146,19 +139,16 @@ final class Setting extends Model
             default => is_scalar($value),
         };
 
-        if (! $valid) {
-            throw new InvalidArgumentException("Invalid value for setting type {$resolvedType}.");
-        }
+        throw_unless($valid, InvalidArgumentException::class, "Invalid value for setting type {$resolvedType}.");
 
         if (in_array($resolvedType, ['array', 'json'], true)) {
             try {
                 $decoded = is_string($value) ? json_decode($value, true, 512, JSON_THROW_ON_ERROR) : $value;
-                if (! is_array($decoded)) {
-                    throw new InvalidArgumentException('Setting JSON must be an array or object.');
-                }
+                throw_unless(is_array($decoded), InvalidArgumentException::class, 'Setting JSON must be an array or object.');
+
                 $this->value = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
             } catch (JsonException $exception) {
-                throw new InvalidArgumentException('Invalid setting JSON.', previous: $exception);
+                throw new InvalidArgumentException('Invalid setting JSON.', $exception->getCode(), previous: $exception);
             }
 
             return;
@@ -168,5 +158,15 @@ final class Setting extends Model
             'boolean', 'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0',
             default => (string) $value,
         };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_public' => 'boolean',
+        ];
     }
 }
