@@ -4,14 +4,26 @@ declare(strict_types=1);
 
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Spatie\Backup\Tasks\Backup\DbDumperFactory;
 use Spatie\DbDumper\Compressors\GzipCompressor;
+use Spatie\DbDumper\Databases\PostgreSql;
 
 test('pgsql connection has database dump configuration defined', function (): void {
     $dumpConfig = config('database.connections.pgsql.dump');
 
     expect($dumpConfig)->toBeArray()
         ->and($dumpConfig['timeout'])->toBe(300)
-        ->and($dumpConfig['exclude_tables'])->toContain('sessions', 'cache', 'cache_locks');
+        ->and($dumpConfig)->not->toHaveKey('exclude_tables')
+        ->and($dumpConfig['add_extra_option'])->toBe('-F c --exclude-table-data=sessions --exclude-table-data=cache --exclude-table-data=cache_locks');
+});
+
+test('pgsql dump command excludes transient table data but retains their schemas', function (): void {
+    $dumper = DbDumperFactory::createFromConnection('pgsql');
+    expect($dumper)->toBeInstanceOf(PostgreSql::class);
+
+    $command = $dumper->getDumpCommand('/tmp/backup-regression.dump');
+    expect($command)->toContain('-F c', '--exclude-table-data=sessions', '--exclude-table-data=cache', '--exclude-table-data=cache_locks')
+        ->not->toContain(' -T ', '--exclude-table=', '--data-only', '--schema-only');
 });
 
 test('backup configuration enables gzip compression for database dump', function (): void {

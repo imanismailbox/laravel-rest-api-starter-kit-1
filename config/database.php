@@ -102,12 +102,7 @@ return [
             'dump' => [
                 'dump_binary_path' => env('PG_DUMP_PATH', ''),
                 'timeout' => 60 * 5,
-                'exclude_tables' => [
-                    'sessions',
-                    'cache',
-                    'cache_locks',
-                ],
-                'add_extra_option' => '-F c',
+                'add_extra_option' => '-F c --exclude-table-data=sessions --exclude-table-data=cache --exclude-table-data=cache_locks',
             ],
         ],
 
