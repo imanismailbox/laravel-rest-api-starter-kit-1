@@ -21,6 +21,12 @@
             "name": "Auth"
         },
         {
+            "name": "Attachment"
+        },
+        {
+            "name": "Two-Factor Authentication"
+        },
+        {
             "name": "User"
         },
         {
@@ -28,9 +34,6 @@
         },
         {
             "name": "Activity Log"
-        },
-        {
-            "name": "Attachment"
         },
         {
             "name": "FCM Notifications"
@@ -355,6 +358,59 @@
                 }
             }
         },
+        "/v1/attachments/{attachment}/download": {
+            "get": {
+                "operationId": "v1.attachments.download",
+                "summary": "Download attachment file",
+                "tags": [
+                    "Attachment"
+                ],
+                "parameters": [
+                    {
+                        "name": "attachment",
+                        "in": "path",
+                        "required": true,
+                        "description": "The attachment ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/AuthorizationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/attachments": {
             "post": {
                 "operationId": "v1.attachments.store",
@@ -565,59 +621,6 @@
                 }
             }
         },
-        "/v1/attachments/{attachment}/download": {
-            "get": {
-                "operationId": "v1.attachments.download",
-                "summary": "Download attachment file",
-                "tags": [
-                    "Attachment"
-                ],
-                "parameters": [
-                    {
-                        "name": "attachment",
-                        "in": "path",
-                        "required": true,
-                        "description": "The attachment ID",
-                        "schema": {
-                            "type": "integer"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/octet-stream": {
-                                "schema": {
-                                    "type": "string",
-                                    "format": "binary"
-                                }
-                            }
-                        },
-                        "headers": {
-                            "Transfer-Encoding": {
-                                "required": true,
-                                "schema": {
-                                    "type": "string",
-                                    "enum": [
-                                        "chunked"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "403": {
-                        "$ref": "#/components/responses/AuthorizationException"
-                    },
-                    "404": {
-                        "$ref": "#/components/responses/ModelNotFoundException"
-                    },
-                    "401": {
-                        "$ref": "#/components/responses/AuthenticationException"
-                    }
-                }
-            }
-        },
         "/v1/auth/register": {
             "post": {
                 "operationId": "v1.auth.register",
@@ -725,6 +728,7 @@
         "/v1/auth/login": {
             "post": {
                 "operationId": "v1.auth.login",
+                "description": "Accounts with two-factor enabled get `two_factor: true` and a `challenge_token` instead;\nsend it with a code to `POST /auth/two-factor-challenge` within 5 minutes.",
                 "summary": "Authenticate user credentials (using email or username) and issue an API token",
                 "tags": [
                     "Auth"
@@ -788,7 +792,7 @@
                             }
                         }
                     },
-                    "403": {
+                    "200": {
                         "description": "",
                         "content": {
                             "application/json": {
@@ -800,20 +804,37 @@
                                         },
                                         "message": {
                                             "type": "string",
-                                            "const": "Two-factor authentication is enabled. API login is unavailable until a two-factor challenge API is supported."
+                                            "const": "Two-factor authentication code required."
                                         },
-                                        "error_code": {
-                                            "type": "string"
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "two_factor": {
+                                                    "type": "boolean"
+                                                },
+                                                "challenge_token": {
+                                                    "type": "string"
+                                                },
+                                                "expires_in": {
+                                                    "type": "integer",
+                                                    "const": 300
+                                                }
+                                            },
+                                            "required": [
+                                                "two_factor",
+                                                "challenge_token",
+                                                "expires_in"
+                                            ]
                                         },
-                                        "errors": {
+                                        "meta": {
                                             "type": "string"
                                         }
                                     },
                                     "required": [
                                         "success",
                                         "message",
-                                        "error_code",
-                                        "errors"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
@@ -852,6 +873,286 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/auth/two-factor-challenge": {
+            "post": {
+                "operationId": "v1.auth.two-factor.challenge",
+                "summary": "Finish a two-factor login with an authenticator code or a recovery code and issue an API token",
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TwoFactorChallengeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Access token issued successfully."
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "token": {
+                                                    "type": "string"
+                                                },
+                                                "token_type": {
+                                                    "type": "string",
+                                                    "const": "Bearer"
+                                                },
+                                                "user": {
+                                                    "$ref": "#/components/schemas/UserResource"
+                                                }
+                                            },
+                                            "required": [
+                                                "token",
+                                                "token_type",
+                                                "user"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/auth/forgot-password": {
+            "post": {
+                "operationId": "v1.auth.password.forgot",
+                "summary": "Email a password reset link. The response is the same whether or not the email exists",
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ForgotPasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "If that email is registered, a password reset link has been sent."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/auth/reset-password": {
+            "post": {
+                "operationId": "v1.auth.password.reset",
+                "summary": "Reset the password with the emailed token. Every existing API token is revoked",
+                "tags": [
+                    "Auth"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ResetPasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Password has been reset. Please log in with your new password."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/auth/email/verify/{id}/{hash}": {
+            "get": {
+                "operationId": "v1.auth.verification.verify",
+                "summary": "Verify an email address from the signed link in the verification email. No login is needed",
+                "tags": [
+                    "Auth"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "hash",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Email address verified successfully."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "This verification link is invalid."
+                                        },
+                                        "error_code": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "error_code",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
                     }
                 },
                 "security": []
@@ -1002,6 +1303,124 @@
                 }
             }
         },
+        "/v1/auth/logout": {
+            "post": {
+                "operationId": "v1.auth.logout",
+                "summary": "Revoke current access token (logout)",
+                "tags": [
+                    "Auth"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Successfully logged out."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/auth/email/resend": {
+            "post": {
+                "operationId": "v1.auth.verification.send",
+                "summary": "Send a new verification email to the authenticated user",
+                "tags": [
+                    "Auth"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean"
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "const": "Verification link sent."
+                                                },
+                                                "data": {
+                                                    "type": "null"
+                                                },
+                                                "meta": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "success",
+                                                "message",
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "success": {
+                                                    "type": "boolean"
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "const": "Email address is already verified."
+                                                },
+                                                "data": {
+                                                    "type": "null"
+                                                },
+                                                "meta": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "success",
+                                                "message",
+                                                "data",
+                                                "meta"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/auth/me/password": {
             "put": {
                 "operationId": "v1.auth.me.password.update",
@@ -1140,51 +1559,6 @@
                                         },
                                         "data": {
                                             "$ref": "#/components/schemas/UserResource"
-                                        },
-                                        "meta": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "success",
-                                        "message",
-                                        "data",
-                                        "meta"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "$ref": "#/components/responses/AuthenticationException"
-                    }
-                }
-            }
-        },
-        "/v1/auth/logout": {
-            "post": {
-                "operationId": "v1.auth.logout",
-                "summary": "Revoke current access token (logout)",
-                "tags": [
-                    "Auth"
-                ],
-                "responses": {
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "const": "Successfully logged out."
-                                        },
-                                        "data": {
-                                            "type": "null"
                                         },
                                         "meta": {
                                             "type": "string"
@@ -2154,6 +2528,357 @@
                 }
             }
         },
+        "/v1/auth/two-factor": {
+            "post": {
+                "operationId": "v1.auth.two-factor.enable",
+                "summary": "Start two-factor setup: returns the secret, QR code and recovery codes. Confirm with a code to activate",
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CurrentPasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Scan the QR code, then confirm with a code from your authenticator app."
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "secret_key": {},
+                                                "otpauth_url": {
+                                                    "type": "string"
+                                                },
+                                                "qr_code_svg": {
+                                                    "type": "string"
+                                                },
+                                                "recovery_codes": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                }
+                                            },
+                                            "required": [
+                                                "secret_key",
+                                                "otpauth_url",
+                                                "qr_code_svg",
+                                                "recovery_codes"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Two-factor authentication is already enabled."
+                                        },
+                                        "error_code": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "error_code",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "v1.auth.two-factor.disable",
+                "summary": "Turn off two-factor authentication",
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "parameters": [
+                    {
+                        "name": "current_password",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Two-factor authentication has been disabled."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/auth/two-factor/confirm": {
+            "post": {
+                "operationId": "v1.auth.two-factor.confirm",
+                "summary": "Activate two-factor authentication with a code from the authenticator app",
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConfirmTwoFactorRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Two-factor authentication is now enabled."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Two-factor authentication is already enabled."
+                                        },
+                                        "error_code": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "error_code",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
+        "/v1/auth/two-factor/recovery-codes": {
+            "post": {
+                "operationId": "v1.auth.two-factor.recovery-codes",
+                "summary": "Replace all recovery codes with a new set",
+                "tags": [
+                    "Two-Factor Authentication"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CurrentPasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "New recovery codes generated. The old codes no longer work."
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "recovery_codes": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                }
+                                            },
+                                            "required": [
+                                                "recovery_codes"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Two-factor authentication is not enabled."
+                                        },
+                                        "error_code": {
+                                            "type": "string"
+                                        },
+                                        "errors": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "success",
+                                        "message",
+                                        "error_code",
+                                        "errors"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                }
+            }
+        },
         "/v1/users/template": {
             "get": {
                 "operationId": "v1.users.template",
@@ -2296,7 +3021,8 @@
                                             "type": "object",
                                             "properties": {
                                                 "restored_count": {
-                                                    "type": "integer"
+                                                    "type": "integer",
+                                                    "minimum": 0
                                                 }
                                             },
                                             "required": [
@@ -2312,37 +3038,6 @@
                                         "message",
                                         "data",
                                         "meta"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "const": "Failed to batch restore resources."
-                                        },
-                                        "error_code": {
-                                            "type": "string"
-                                        },
-                                        "errors": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "success",
-                                        "message",
-                                        "error_code",
-                                        "errors"
                                     ]
                                 }
                             }
@@ -2398,7 +3093,8 @@
                                             "type": "object",
                                             "properties": {
                                                 "deleted_count": {
-                                                    "type": "integer"
+                                                    "type": "integer",
+                                                    "minimum": 0
                                                 }
                                             },
                                             "required": [
@@ -2414,37 +3110,6 @@
                                         "message",
                                         "data",
                                         "meta"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "const": "Failed to batch permanently delete resources."
-                                        },
-                                        "error_code": {
-                                            "type": "string"
-                                        },
-                                        "errors": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "success",
-                                        "message",
-                                        "error_code",
-                                        "errors"
                                     ]
                                 }
                             }
@@ -2500,7 +3165,8 @@
                                             "type": "object",
                                             "properties": {
                                                 "deleted_count": {
-                                                    "type": "integer"
+                                                    "type": "integer",
+                                                    "minimum": 0
                                                 }
                                             },
                                             "required": [
@@ -2516,37 +3182,6 @@
                                         "message",
                                         "data",
                                         "meta"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "success": {
-                                            "type": "boolean"
-                                        },
-                                        "message": {
-                                            "type": "string",
-                                            "const": "Failed to batch delete resources."
-                                        },
-                                        "error_code": {
-                                            "type": "string"
-                                        },
-                                        "errors": {
-                                            "type": "string"
-                                        }
-                                    },
-                                    "required": [
-                                        "success",
-                                        "message",
-                                        "error_code",
-                                        "errors"
                                     ]
                                 }
                             }
@@ -3506,10 +4141,7 @@
                         "type": "boolean"
                     },
                     "url": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "download_url": {
                         "type": "string"
@@ -3559,13 +4191,26 @@
                         "items": {
                             "type": "string"
                         },
-                        "minItems": 1
+                        "minItems": 1,
+                        "maxItems": 100
                     }
                 },
                 "required": [
                     "ids"
                 ],
                 "title": "BatchOperationRequest"
+            },
+            "ConfirmTwoFactorRequest": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "code"
+                ],
+                "title": "ConfirmTwoFactorRequest"
             },
             "CreateRoleRequest": {
                 "type": "object",
@@ -3623,11 +4268,7 @@
                             "null"
                         ],
                         "items": {
-                            "type": "string",
-                            "enum": [
-                                "admin",
-                                "user"
-                            ]
+                            "type": "string"
                         }
                     }
                 },
@@ -3637,6 +4278,18 @@
                     "password"
                 ],
                 "title": "CreateUserRequest"
+            },
+            "CurrentPasswordRequest": {
+                "type": "object",
+                "properties": {
+                    "current_password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "current_password"
+                ],
+                "title": "CurrentPasswordRequest"
             },
             "FcmTokenResource": {
                 "type": "object",
@@ -3674,6 +4327,19 @@
                     "created_at"
                 ],
                 "title": "FcmTokenResource"
+            },
+            "ForgotPasswordRequest": {
+                "type": "object",
+                "properties": {
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    }
+                },
+                "required": [
+                    "email"
+                ],
+                "title": "ForgotPasswordRequest"
             },
             "ImportUsersRequest": {
                 "type": "object",
@@ -3806,6 +4472,31 @@
                     "password_confirmation"
                 ],
                 "title": "RegisterRequest"
+            },
+            "ResetPasswordRequest": {
+                "type": "object",
+                "properties": {
+                    "token": {
+                        "type": "string"
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email"
+                    },
+                    "password": {
+                        "type": "string"
+                    },
+                    "password_confirmation": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "token",
+                    "email",
+                    "password",
+                    "password_confirmation"
+                ],
+                "title": "ResetPasswordRequest"
             },
             "RoleResource": {
                 "type": "object",
@@ -3951,6 +4642,30 @@
                 ],
                 "title": "SyncAttachmentsRequest"
             },
+            "TwoFactorChallengeRequest": {
+                "type": "object",
+                "properties": {
+                    "challenge_token": {
+                        "type": "string"
+                    },
+                    "code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "recovery_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "challenge_token"
+                ],
+                "title": "TwoFactorChallengeRequest"
+            },
             "UpdatePasswordRequest": {
                 "type": "object",
                 "properties": {
@@ -4055,11 +4770,7 @@
                             "null"
                         ],
                         "items": {
-                            "type": "string",
-                            "enum": [
-                                "admin",
-                                "user"
-                            ]
+                            "type": "string"
                         }
                     }
                 },
@@ -4224,8 +4935,8 @@
                     }
                 }
             },
-            "AuthenticationException": {
-                "description": "Unauthenticated",
+            "ModelNotFoundException": {
+                "description": "Not found",
                 "content": {
                     "application/json": {
                         "schema": {
@@ -4262,8 +4973,8 @@
                     }
                 }
             },
-            "ModelNotFoundException": {
-                "description": "Not found",
+            "AuthenticationException": {
+                "description": "Unauthenticated",
                 "content": {
                     "application/json": {
                         "schema": {
