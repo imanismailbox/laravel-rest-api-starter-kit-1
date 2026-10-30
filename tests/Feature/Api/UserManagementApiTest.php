@@ -6,6 +6,7 @@ use App\Enums\UserRole;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 
 beforeEach(function (): void {
@@ -224,4 +225,17 @@ test('regular users cannot access user management endpoints', function (): void 
 
     $this->postJson(route('api.v1.users.store'), [])
         ->assertForbidden();
+});
+
+test('including permissions on the user list does not run a query per user', function (): void {
+    User::factory()->count(10)->create()->each->assignRole(UserRole::User->value);
+    $this->getJson(route('api.v1.users.index', ['include' => 'permissions']))->assertOk();
+
+    DB::enableQueryLog();
+    $response = $this->getJson(route('api.v1.users.index', ['include' => 'permissions', 'per_page' => 20]))->assertOk();
+    $queries = count(DB::getQueryLog());
+    DB::disableQueryLog();
+
+    expect($queries)->toBeLessThan(10)
+        ->and(collect($response->json('data'))->firstWhere('id', $this->admin->id)['permissions'])->toContain('users.view');
 });

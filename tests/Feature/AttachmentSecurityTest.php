@@ -85,13 +85,22 @@ test('sync checks every file before changing any links', function (): void {
     expect($this->owner->attachments()->count())->toBe(0);
 });
 
-test('attachment includes cannot disclose someone elses private file', function (): void {
+test('attachment includes only list files the viewer may open', function (): void {
     $attachment = Attachment::factory()->create(['user_id' => $this->owner->id, 'is_private' => true]);
+    $shared = Attachment::factory()->create(['user_id' => $this->other->id]);
     $this->owner->attachAttachment($attachment);
+    $this->owner->attachAttachment($shared);
+
     $this->other->givePermissionTo('users.view');
+    $query = ['filter' => ['email' => $this->owner->email], 'include' => 'attachments'];
     Sanctum::actingAs($this->other);
 
-    $this->getJson(route('api.v1.users.index', ['filter' => ['email' => $this->owner->email], 'include' => 'attachments']))->assertForbidden();
+    $this->getJson(route('api.v1.users.index', $query))->assertOk()
+        ->assertJsonPath('data.0.attachments.*.id', [$shared->id]);
+
+    $this->other->assignRole(UserRole::Admin);
+    expect(collect($this->getJson(route('api.v1.users.index', $query))->assertOk()->json('data.0.attachments.*.id'))->sort()->values()->all())
+        ->toBe([$attachment->id, $shared->id]);
 });
 
 test('SVG uploads and unsupported attachable types are rejected', function (): void {

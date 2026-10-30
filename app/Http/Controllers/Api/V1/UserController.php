@@ -8,6 +8,7 @@ use App\Actions\User\CreateUser;
 use App\Actions\User\DeleteUser;
 use App\Actions\User\ImportUsers;
 use App\Actions\User\UpdateUser;
+use App\Enums\UserRole;
 use App\Exports\UserImportTemplateExport;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\V1\Attachment\SyncAttachmentsRequest;
@@ -23,12 +24,14 @@ use App\Query\Definitions\UserQueryDefinition;
 use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Maatwebsite\Excel\Facades\Excel;
+use Spatie\QueryBuilder\QueryBuilder;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -218,6 +221,33 @@ final class UserController extends ApiController
     /**
      * Stop delegates from batch-changing administrators.
      */
+    /**
+     * Eager load what the requested includes need, and limit attachments to those the viewer may open.
+     *
+     * @param  QueryBuilder<Model>  $query
+     * @param  class-string  $definition
+     * @return QueryBuilder<Model>
+     */
+    protected function augmentIndexQuery(QueryBuilder $query, string $definition, Request $request): QueryBuilder
+    {
+        $includes = explode(',', (string) $request->query('include', ''));
+
+        // UserResource uses getAllPermissions(), which lazy-loads roles.permissions per user otherwise.
+        if (in_array('permissions', $includes, true)) {
+            $query->getEloquentBuilder()->with('roles.permissions');
+        }
+
+        /** @var User $viewer */
+        $viewer = $request->user();
+
+        // Same rule as AttachmentPolicy::view; AttachmentResource rejects the whole list on any other attachment.
+        if (in_array('attachments', $includes, true) && ! $viewer->hasRole(UserRole::Admin->value)) {
+            $query->getEloquentBuilder()->with(['attachments' => fn (Relation $q): Relation => $q->where('attachments.user_id', $viewer->id)]);
+        }
+
+        return $query;
+    }
+
     protected function authorizeBatchItem(Model $item): void
     {
         Gate::authorize('manage-user', $item);
