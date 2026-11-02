@@ -13,6 +13,7 @@ use App\Query\Attributes\Filter;
 use App\Query\Attributes\IncludeRelation;
 use App\Query\Attributes\QueryDefinition;
 use App\Query\Attributes\Sort;
+use Illuminate\Support\Collection;
 use ReflectionClass;
 
 final class QueryDefinitionParser
@@ -32,25 +33,12 @@ final class QueryDefinitionParser
 
     /**
      * @param  class-string  $definition
-     * @return array{
-     *     filters: \Illuminate\Support\Collection<int, Filter>,
-     *     sorts: \Illuminate\Support\Collection<int, string>,
-     *     includes: \Illuminate\Support\Collection<int, string>,
-     *     fields: \Illuminate\Support\Collection<int, string>,
-     *     disable_paginate: bool,
-     *     disable_filter: bool,
-     *     disable_sort: bool,
-     *     disable_include: bool,
-     *     disable_export: bool,
-     *     paginate_perpage: int,
-     *     default_sort: string,
-     *     searchable: array<int, string>
-     * }
+     * @return array{filters: Collection<int, Filter>, sorts: Collection<int, string>, includes: Collection<int, string>, fields: Collection<int, string>, disable_paginate: bool, disable_filter: bool, disable_sort: bool, disable_include: bool, disable_export: bool, paginate_perpage: int, default_sort: string, searchable: array<int, string>}
      */
     public static function parse(string $definition): array
     {
         if (isset(self::$cache[$definition])) {
-            /** @var array{filters: \Illuminate\Support\Collection<int, Filter>, sorts: \Illuminate\Support\Collection<int, string>, includes: \Illuminate\Support\Collection<int, string>, fields: \Illuminate\Support\Collection<int, string>, disable_paginate: bool, disable_filter: bool, disable_sort: bool, disable_include: bool, disable_export: bool, paginate_perpage: int, default_sort: string, searchable: array<int, string>} $cached */
+            /** @var array{filters: Collection<int, Filter>, sorts: Collection<int, string>, includes: Collection<int, string>, fields: Collection<int, string>, disable_paginate: bool, disable_filter: bool, disable_sort: bool, disable_include: bool, disable_export: bool, paginate_perpage: int, default_sort: string, searchable: array<int, string>} $cached */
             $cached = self::$cache[$definition];
 
             return $cached;
@@ -62,17 +50,17 @@ final class QueryDefinitionParser
         $attrConfig = $attr?->newInstance();
 
         // Retrieve data from QueryDefinition attribute (if available)
-        $filters = collect($attrConfig?->allowFilter ?? [])
-            ->map(fn (string $name) => new Filter($name));
+        $filters = collect($attrConfig->allowFilter ?? [])
+            ->map(fn (string $name): Filter => new Filter($name));
 
-        $sorts = collect($attrConfig?->allowSort ?? []);
-        $includes = collect($attrConfig?->allowInclude ?? []);
-        $fields = collect($attrConfig?->allowField ?? []);
+        $sorts = collect($attrConfig->allowSort ?? []);
+        $includes = collect($attrConfig->allowInclude ?? []);
+        $fields = collect($attrConfig->allowField ?? []);
 
         // Merge with individual repeatable attributes
         $filters = $filters->merge(
             collect($ref->getAttributes(Filter::class))
-                ->map(fn ($a) => $a->newInstance())
+                ->map(fn ($a): Filter => $a->newInstance())
         )->unique('name');
 
         $sorts = $sorts->merge(
@@ -86,11 +74,11 @@ final class QueryDefinitionParser
         )->unique();
 
         // Handle Disable flags
-        $disablePaginate = ($attrConfig?->disablePaginate ?? false) || count($ref->getAttributes(DisablePaginate::class)) > 0;
-        $disableFilter = ($attrConfig?->disableFilter ?? false) || count($ref->getAttributes(DisableFilter::class)) > 0;
-        $disableSort = ($attrConfig?->disableSort ?? false) || count($ref->getAttributes(DisableSort::class)) > 0;
-        $disableInclude = ($attrConfig?->disableInclude ?? false) || count($ref->getAttributes(DisableInclude::class)) > 0;
-        $disableExport = ($attrConfig?->disableExport ?? false) || count($ref->getAttributes(DisableExport::class)) > 0;
+        $disablePaginate = ($attrConfig->disablePaginate ?? false) || count($ref->getAttributes(DisablePaginate::class)) > 0;
+        $disableFilter = ($attrConfig->disableFilter ?? false) || count($ref->getAttributes(DisableFilter::class)) > 0;
+        $disableSort = ($attrConfig->disableSort ?? false) || count($ref->getAttributes(DisableSort::class)) > 0;
+        $disableInclude = ($attrConfig->disableInclude ?? false) || count($ref->getAttributes(DisableInclude::class)) > 0;
+        $disableExport = ($attrConfig->disableExport ?? false) || count($ref->getAttributes(DisableExport::class)) > 0;
 
         return self::$cache[$definition] = [
             'filters' => $filters,
@@ -102,9 +90,9 @@ final class QueryDefinitionParser
             'disable_sort' => $disableSort,
             'disable_include' => $disableInclude,
             'disable_export' => $disableExport,
-            'paginate_perpage' => $attrConfig?->paginatePerpage ?? 15,
-            'default_sort' => $attrConfig?->defaultSort ?? '-created_at',
-            'searchable' => ! empty($attrConfig?->searchable)
+            'paginate_perpage' => $attrConfig->paginatePerpage ?? 15,
+            'default_sort' => $attrConfig->defaultSort ?? '-created_at',
+            'searchable' => ($attrConfig->searchable ?? []) !== []
                 ? $attrConfig->searchable
                 : (method_exists($definition, 'searchable') ? $definition::searchable() : []),
         ];

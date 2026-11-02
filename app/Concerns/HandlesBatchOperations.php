@@ -6,49 +6,33 @@ namespace App\Concerns;
 
 use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use RuntimeException;
-use Throwable;
 
 trait HandlesBatchOperations
 {
     /**
      * Batch Delete (Soft delete if model uses SoftDeletes, or permanent delete otherwise).
      *
+     * @param  array<int, string>  $ids
      * @param  class-string<Model>|Model|null  $model
      */
-    public function batchDestroyInternal(Request $request, string|Model|null $model = null): JsonResponse
+    public function batchDestroyInternal(array $ids, string|Model|null $model = null): JsonResponse
     {
         $instance = $this->resolveBatchModel($model);
 
-        /** @var array{ids: array<int, string>} $data */
-        $data = $request->validate([
-            'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['required', 'string'],
-        ]);
-
-        $deletedCount = 0;
-
-        try {
-            DB::transaction(function () use ($instance, $data, &$deletedCount): void {
-                $instance->newQuery()
-                    ->whereIn($instance->getKeyName(), $data['ids'])
-                    ->get()
-                    ->each(function (Model $item) use (&$deletedCount): void {
-                        if ($item->delete()) {
-                            $deletedCount++;
-                        }
-                    });
-            });
-        } catch (Throwable) {
-            return ApiResponse::serverError('Failed to batch delete resources.');
-        }
+        $deletedCount = DB::transaction(fn (): int => $instance->newQuery()
+            ->whereIn($instance->getKeyName(), $ids)
+            ->get()
+            ->each(fn (Model $item) => $this->authorizeBatchItem($item))
+            ->filter(fn (Model $item): bool => (bool) $item->delete())
+            ->count());
 
         $modelName = class_basename($instance);
-        $plural = \Illuminate\Support\Str::plural(\Illuminate\Support\Str::lower($modelName));
+        $plural = Str::plural(Str::lower($modelName));
 
         return ApiResponse::success(
             data: ['deleted_count' => $deletedCount],
@@ -59,39 +43,24 @@ trait HandlesBatchOperations
     /**
      * Batch Restore soft-deleted records.
      *
+     * @param  array<int, string>  $ids
      * @param  class-string<Model>|Model|null  $model
      */
-    public function batchRestoreInternal(Request $request, string|Model|null $model = null): JsonResponse
+    public function batchRestoreInternal(array $ids, string|Model|null $model = null): JsonResponse
     {
         $instance = $this->resolveBatchModel($model);
 
-        /** @var array{ids: array<int, string>} $data */
-        $data = $request->validate([
-            'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['required', 'string'],
-        ]);
+        $restoredCount = DB::transaction(function () use ($instance, $ids): int {
+            $query = method_exists($instance, 'getQualifiedDeletedAtColumn')
+                ? $instance->newQueryWithoutScope(SoftDeletingScope::class)->whereNotNull($instance->getQualifiedDeletedAtColumn())
+                : $instance->newQuery();
 
-        $restoredCount = 0;
-
-        try {
-            DB::transaction(function () use ($instance, $data, &$restoredCount): void {
-                $query = $instance->newQuery();
-
-                if (in_array(SoftDeletes::class, class_uses_recursive($instance), true)) {
-                    $query->onlyTrashed();
-                }
-
-                $query->whereIn($instance->getKeyName(), $data['ids'])
-                    ->get()
-                    ->each(function (Model $item) use (&$restoredCount): void {
-                        if (method_exists($item, 'restore') && $item->restore()) {
-                            $restoredCount++;
-                        }
-                    });
-            });
-        } catch (Throwable) {
-            return ApiResponse::serverError('Failed to batch restore resources.');
-        }
+            return $query->whereIn($instance->getKeyName(), $ids)
+                ->get()
+                ->each(fn (Model $item) => $this->authorizeBatchItem($item))
+                ->filter(fn (Model $item): bool => method_exists($item, 'restore') && $item->restore())
+                ->count();
+        });
 
         return ApiResponse::success(
             data: ['restored_count' => $restoredCount],
@@ -102,45 +71,33 @@ trait HandlesBatchOperations
     /**
      * Batch Force Delete (Permanent removal from database).
      *
+     * @param  array<int, string>  $ids
      * @param  class-string<Model>|Model|null  $model
      */
-    public function batchForceDestroyInternal(Request $request, string|Model|null $model = null): JsonResponse
+    public function batchForceDestroyInternal(array $ids, string|Model|null $model = null): JsonResponse
     {
         $instance = $this->resolveBatchModel($model);
 
-        /** @var array{ids: array<int, string>} $data */
-        $data = $request->validate([
-            'ids' => ['required', 'array', 'min:1'],
-            'ids.*' => ['required', 'string'],
-        ]);
+        $deletedCount = DB::transaction(function () use ($instance, $ids): int {
+            $query = $instance->newQueryWithoutScope(SoftDeletingScope::class);
 
-        $deletedCount = 0;
-
-        try {
-            DB::transaction(function () use ($instance, $data, &$deletedCount): void {
-                $query = $instance->newQuery();
-
-                if (in_array(SoftDeletes::class, class_uses_recursive($instance), true)) {
-                    $query->withTrashed();
-                }
-
-                $query->whereIn($instance->getKeyName(), $data['ids'])
-                    ->get()
-                    ->each(function (Model $item) use (&$deletedCount): void {
-                        if (method_exists($item, 'forceDelete') ? $item->forceDelete() : $item->delete()) {
-                            $deletedCount++;
-                        }
-                    });
-            });
-        } catch (Throwable) {
-            return ApiResponse::serverError('Failed to batch permanently delete resources.');
-        }
+            return $query->whereIn($instance->getKeyName(), $ids)
+                ->get()
+                ->each(fn (Model $item) => $this->authorizeBatchItem($item))
+                ->filter(fn (Model $item): bool => (bool) $item->forceDelete())
+                ->count();
+        });
 
         return ApiResponse::success(
             data: ['deleted_count' => $deletedCount],
             message: "Successfully permanently deleted {$deletedCount} resources.",
         );
     }
+
+    /**
+     * Authorize a single record before a batch operation changes it.
+     */
+    protected function authorizeBatchItem(Model $item): void {}
 
     private function resolveBatchModel(string|Model|null $model): Model
     {

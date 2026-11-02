@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Auth;
 
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -17,7 +18,7 @@ final readonly class RegisterUser
      */
     public function handle(array $data): User
     {
-        return DB::transaction(function () use ($data): User {
+        $user = DB::transaction(function () use ($data): User {
             $user = User::query()->create([
                 'name' => (string) $data['name'],
                 'email' => (string) $data['email'],
@@ -31,5 +32,9 @@ final readonly class RegisterUser
 
             return $user;
         });
+
+        event(new Registered($user));
+
+        return $user;
     }
 }

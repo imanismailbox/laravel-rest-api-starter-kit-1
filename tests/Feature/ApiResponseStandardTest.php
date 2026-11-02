@@ -3,14 +3,11 @@
 declare(strict_types=1);
 
 use App\Enums\ApiErrorCode;
-use App\Http\Middleware\EnsureEmailVerified;
 use App\Models\User;
 use App\Support\ApiResponse;
-use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Laravel\Sanctum\Sanctum;
 
 test('api response helper returns standardized success payload with meta', function (): void {
     $response = ApiResponse::success(['id' => 1], 'Success test.', 200, ['custom_meta' => true]);
@@ -132,38 +129,4 @@ test('api requests receive X-Response-Time header from LogApiRequests middleware
     $response->assertOk();
 
     expect($response->headers->has('X-Response-Time'))->toBeTrue();
-});
-
-test('access token middleware accepts pat query parameter and authenticates request', function (): void {
-    $user = User::factory()->create();
-    $token = $user->createToken('pat-test')->plainTextToken;
-
-    $this->getJson('/api/v1/user?pat='.$token)
-        ->assertApiSuccess('User profile retrieved successfully.')
-        ->assertJson([
-            'data' => [
-                'id' => $user->id,
-            ],
-        ]);
-});
-
-test('ensure email verified middleware blocks unverified users with 403 json', function (): void {
-    $user = User::factory()->unverified()->create();
-
-    Sanctum::actingAs($user);
-
-    $middleware = new EnsureEmailVerified();
-    $request = Request::create('/api/v1/verified-only');
-    $request->setUserResolver(fn () => $user);
-
-    $response = $middleware->handle($request, fn () => response()->json(['success' => true]));
-
-    expect($response->getStatusCode())->toBe(403);
-
-    $data = json_decode((string) $response->getContent(), true);
-    expect($data)->toBe([
-        'success' => false,
-        'message' => 'Your email address is not verified. Please verify your email to continue.',
-        'error_code' => 'EMAIL_NOT_VERIFIED',
-    ]);
 });

@@ -11,6 +11,7 @@ use App\Http\Middleware\LogApiRequests;
 use App\Support\ApiResponse;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -26,23 +27,21 @@ use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
-        web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'force.json' => ForceJsonResponse::class,
-            'log.api' => LogApiRequests::class,
             'pat' => AccessTokenMiddleware::class,
             'verified.api' => EnsureEmailVerified::class,
-            'security.hsts' => EnforceTransportSecurity::class,
         ]);
 
         $middleware->trustProxies(at: '*');
 
-        $middleware->prepend(AccessTokenMiddleware::class);
+        // `pat` must turn the query token into a header before auth runs.
+        $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: AccessTokenMiddleware::class);
+
         $middleware->prependToGroup('api', ForceJsonResponse::class);
         $middleware->appendToGroup('api', LogApiRequests::class);
         $middleware->appendToGroup('api', EnforceTransportSecurity::class);

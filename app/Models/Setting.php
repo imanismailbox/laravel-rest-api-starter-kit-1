@@ -5,43 +5,28 @@ declare(strict_types=1);
 namespace App\Models;
 
 use Database\Factories\SettingFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
+use InvalidArgumentException;
+use JsonException;
 
+#[Fillable([
+    'key',
+    'value',
+    'group',
+    'type',
+    'is_public',
+    'description',
+])]
 final class Setting extends Model
 {
     /** @use HasFactory<SettingFactory> */
     use HasFactory;
 
     use HasUuids;
-
-    public const CACHE_KEY = 'app_settings_all';
-
-    public const CACHE_MODELS_KEY = 'app_settings_models';
-
-    public const CACHE_TTL = 86400; // 24 hours
-
-    /**
-     * @var list<string>
-     */
-    protected $fillable = [
-        'key',
-        'value',
-        'group',
-        'type',
-        'is_public',
-        'description',
-    ];
-
-    /**
-     * @var array<string, string>
-     */
-    protected $casts = [
-        'is_public' => 'boolean',
-    ];
 
     /**
      * Auto-detect setting type based on variable type.
@@ -51,12 +36,15 @@ final class Setting extends Model
         if (is_bool($value)) {
             return 'boolean';
         }
+
         if (is_int($value)) {
             return 'integer';
         }
+
         if (is_float($value)) {
             return 'float';
         }
+
         if (is_array($value)) {
             return 'array';
         }
@@ -65,38 +53,13 @@ final class Setting extends Model
     }
 
     /**
-     * Retrieve all settings cached as a key => casted_value collection.
-     *
-     * @return Collection<string, mixed>
-     */
-    public static function getAllCached(): Collection
-    {
-        return Cache::remember(self::CACHE_KEY, self::CACHE_TTL, function (): Collection {
-            return self::query()->get()->mapWithKeys(function (self $setting): array {
-                return [$setting->key => $setting->getCastedValue()];
-            });
-        });
-    }
-
-    /**
-     * Retrieve all settings model records cached and ordered.
+     * Retrieve current settings model records ordered.
      *
      * @return Collection<int, self>
      */
     public static function getAllModels(): Collection
     {
-        return Cache::remember(self::CACHE_MODELS_KEY, self::CACHE_TTL, function (): Collection {
-            return self::query()->orderBy('group')->orderBy('key')->get();
-        });
-    }
-
-    /**
-     * Clear settings cache.
-     */
-    public static function clearCache(): void
-    {
-        Cache::forget(self::CACHE_KEY);
-        Cache::forget(self::CACHE_MODELS_KEY);
+        return self::query()->orderBy('group')->orderBy('key')->get();
     }
 
     /**
@@ -104,13 +67,9 @@ final class Setting extends Model
      */
     public static function get(string $key, mixed $default = null): mixed
     {
-        $all = self::getAllCached();
+        $setting = self::query()->where('key', $key)->first();
 
-        if ($all->has($key)) {
-            return $all->get($key);
-        }
-
-        return $default;
+        return $setting !== null ? $setting->getCastedValue() : $default;
     }
 
     /**
@@ -133,8 +92,6 @@ final class Setting extends Model
 
         $setting->setCastedValue($value, $type);
         $setting->save();
-
-        self::clearCache();
 
         return $setting;
     }
@@ -171,10 +128,45 @@ final class Setting extends Model
             return;
         }
 
+        $valid = match ($resolvedType) {
+            'boolean', 'bool' => (is_bool($value) || is_int($value) || is_string($value))
+                && (! is_string($value) || mb_trim($value) !== '')
+                && filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== null,
+            'integer', 'int' => (is_int($value) || is_string($value))
+                && filter_var($value, FILTER_VALIDATE_INT) !== false,
+            'float', 'double', 'number' => is_numeric($value) && is_finite((float) $value),
+            'array', 'json' => is_array($value) || is_string($value),
+            default => is_scalar($value),
+        };
+
+        throw_unless($valid, InvalidArgumentException::class, "Invalid value for setting type {$resolvedType}.");
+
+        if (in_array($resolvedType, ['array', 'json'], true)) {
+            try {
+                $decoded = is_string($value) ? json_decode($value, true, 512, JSON_THROW_ON_ERROR) : $value;
+                throw_unless(is_array($decoded), InvalidArgumentException::class, 'Setting JSON must be an array or object.');
+
+                $this->value = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            } catch (JsonException $exception) {
+                throw new InvalidArgumentException('Invalid setting JSON.', $exception->getCode(), previous: $exception);
+            }
+
+            return;
+        }
+
         $this->value = match ($resolvedType) {
-            'boolean', 'bool' => $value ? '1' : '0',
-            'array', 'json' => is_string($value) ? $value : json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'boolean', 'bool' => filter_var($value, FILTER_VALIDATE_BOOLEAN) ? '1' : '0',
             default => (string) $value,
         };
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_public' => 'boolean',
+        ];
     }
 }

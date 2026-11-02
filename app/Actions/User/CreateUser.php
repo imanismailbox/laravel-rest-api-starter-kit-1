@@ -6,6 +6,7 @@ namespace App\Actions\User;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 
 final readonly class CreateUser
@@ -17,6 +18,8 @@ final readonly class CreateUser
      */
     public function handle(array $data): User
     {
+        Gate::authorize('grant-roles', [$data['roles'] ?? []]);
+
         return DB::transaction(function () use ($data): User {
             $user = User::query()->create([
                 'name' => (string) $data['name'],

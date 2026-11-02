@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Attachment;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
 
 final class UploadAttachmentRequest extends FormRequest
@@ -28,10 +30,10 @@ final class UploadAttachmentRequest extends FormRequest
 
         return [
             'file' => ['required_without:files', 'file', "max:{$maxSize}", $extensionRule],
-            'files' => ['required_without:file', 'array'],
+            'files' => ['required_without:file', 'array', 'min:1', 'max:20'],
             'files.*' => ['file', "max:{$maxSize}", $extensionRule],
             'name' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'description' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'description' => ['sometimes', 'nullable', 'string', 'max:255'],
             'is_private' => ['sometimes', 'boolean'],
             'attachable_type' => ['sometimes', 'string', 'max:255'],
             'attachable_id' => ['required_with:attachable_type', 'string'],
@@ -46,10 +48,9 @@ final class UploadAttachmentRequest extends FormRequest
     public function uploadedFiles(): array
     {
         if ($this->hasFile('files')) {
-            /** @var array<int, UploadedFile> $files */
             $files = $this->file('files');
 
-            return array_filter($files, fn ($file): bool => $file instanceof UploadedFile);
+            return is_array($files) ? array_values(array_filter($files, fn (mixed $file): bool => $file instanceof UploadedFile)) : [];
         }
 
         if ($this->hasFile('file')) {
@@ -80,9 +81,9 @@ final class UploadAttachmentRequest extends FormRequest
         $id = (string) $id;
 
         /** @var class-string<Model>|null $modelClass */
-        $modelClass = Relation::getMorphedModel($type) ?? (class_exists($type) ? $type : null);
+        $modelClass = Relation::getMorphedModel($type) ?? ($type === User::class ? User::class : null);
 
-        if (! $modelClass || ! is_subclass_of($modelClass, Model::class)) {
+        if ($modelClass !== User::class) {
             throw ValidationException::withMessages([
                 'attachable_type' => ["Invalid attachable type [{$type}]."],
             ]);
@@ -96,6 +97,8 @@ final class UploadAttachmentRequest extends FormRequest
                 'attachable_id' => ["Target attachable resource [{$id}] not found."],
             ]);
         }
+
+        Gate::authorize('updateAttachments', $model);
 
         return $model;
     }

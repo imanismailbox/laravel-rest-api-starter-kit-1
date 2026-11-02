@@ -6,13 +6,12 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 final class LogApiRequests
 {
     /**
-     * Measure response time and optionally log API requests.
+     * Add the response time header to API responses.
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -23,19 +22,6 @@ final class LogApiRequests
         $response = $next($request);
 
         $duration = round((microtime(true) - $startTime) * 1000, 2);
-
-        if ((bool) config('app.log_api_requests', false)) {
-            Log::info('API Request', [
-                'timestamp' => now()->toIso8601String(),
-                'method' => $request->method(),
-                'url' => $request->fullUrl(),
-                'ip' => $request->ip(),
-                'user_id' => $request->user()?->getAuthIdentifier(),
-                'status' => $response->getStatusCode(),
-                'duration_ms' => $duration,
-                'user_agent' => $request->userAgent(),
-            ]);
-        }
 
         $response->headers->set('X-Response-Time', $duration.'ms');
 

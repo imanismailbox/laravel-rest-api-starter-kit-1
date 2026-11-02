@@ -133,7 +133,7 @@ return [
     |
     */
 
-    'views' => true,
+    'views' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -163,16 +163,9 @@ return [
     */
 
     'features' => [
-        Features::registration(),
-        Features::resetPasswords(),
-        Features::emailVerification(),
+        // Only the two-factor engine is used; the API exposes it under /api/v1/auth/two-factor.
         Features::twoFactorAuthentication([
             'confirm' => true,
-            'confirmPassword' => true,
-            // 'window' => 0
-        ]),
-        Features::passkeys([
-            'confirmPassword' => true,
         ]),
     ],
 

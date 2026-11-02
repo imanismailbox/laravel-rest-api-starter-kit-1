@@ -6,6 +6,7 @@ namespace App\Actions\User;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Hash;
 
 final readonly class UpdateUser
@@ -18,6 +19,11 @@ final readonly class UpdateUser
     public function handle(User $user, array $data): User
     {
         return DB::transaction(function () use ($user, $data): User {
+            $user = User::query()->lockForUpdate()->findOrFail($user->id);
+            Gate::authorize('manage-user', $user);
+
+            Gate::authorize('grant-roles', [$data['roles'] ?? []]);
+
             if (isset($data['name'])) {
                 $user->name = $data['name'];
             }

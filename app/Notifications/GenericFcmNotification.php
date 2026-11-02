@@ -37,7 +37,7 @@ final class GenericFcmNotification extends Notification implements ShouldQueue
     {
         return FcmMessage::create()
             ->notification(
-                Notification: new FcmNotification(
+                notification: new FcmNotification(
                     title: $this->title,
                     body: $this->body,
                     image: $this->image,

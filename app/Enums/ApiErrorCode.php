@@ -12,6 +12,7 @@ enum ApiErrorCode: string
     case Forbidden = 'FORBIDDEN';
     case EmailNotVerified = 'EMAIL_NOT_VERIFIED';
     case RateLimitExceeded = 'RATE_LIMIT_EXCEEDED';
+    case Conflict = 'CONFLICT';
     case BadRequest = 'BAD_REQUEST';
     case ServerError = 'INTERNAL_SERVER_ERROR';
 }

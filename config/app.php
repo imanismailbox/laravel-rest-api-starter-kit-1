@@ -57,6 +57,13 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     /*
+    | Client app that renders the reset-password and verify-email pages.
+    | Leave empty to send the API's own signed verification link.
+    */
+
+    'frontend_url' => env('FRONTEND_URL'),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------

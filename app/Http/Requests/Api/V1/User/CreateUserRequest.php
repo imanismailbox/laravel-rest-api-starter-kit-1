@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\User;
 
-use App\Enums\UserRole;
+use App\Concerns\NormalizesEmail;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
 final class CreateUserRequest extends FormRequest
 {
+    use NormalizesEmail;
+
     public function authorize(): bool
     {
         return true;
@@ -27,7 +29,7 @@ final class CreateUserRequest extends FormRequest
             'password' => ['required', 'string', Password::defaults()],
             'email_verified' => ['nullable', 'boolean'],
             'roles' => ['nullable', 'array'],
-            'roles.*' => ['string', Rule::in(UserRole::values())],
+            'roles.*' => ['string', Rule::exists('roles', 'name')],
         ];
     }
 }

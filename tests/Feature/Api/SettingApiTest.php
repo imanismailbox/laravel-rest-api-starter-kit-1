@@ -89,6 +89,7 @@ test('registration is blocked when allow_registration setting is false', functio
     ]);
 
     $response->assertForbidden();
+
     expect($response->json('message'))->toContain('disabled by administrator');
 });
 

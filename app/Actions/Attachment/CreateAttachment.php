@@ -11,6 +11,8 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use RuntimeException;
+use Throwable;
 
 final readonly class CreateAttachment
 {
@@ -26,12 +28,16 @@ final readonly class CreateAttachment
         ?Model $attachable = null,
     ): Attachment {
         $targetDisk = $disk ?: (string) config('filesystems.default');
+        if ($isPrivate && ($targetDisk === 'public' || config("filesystems.disks.{$targetDisk}.visibility") === 'public')) {
+            $targetDisk = 'local';
+        }
+
         $directory = (string) config('attachment.directory', 'attachments');
         $dateFolder = $directory.'/'.now()->format('Y/m');
 
         $originalName = $file->getClientOriginalName();
         $extension = $file->getClientOriginalExtension() ?: $file->guessExtension() ?: 'bin';
-        $mimeType = $file->getClientMimeType() ?: 'application/octet-stream';
+        $mimeType = $file->getMimeType() ?: 'application/octet-stream';
 
         $autoResize = (bool) config('attachment.image.auto_resize', true);
         $maxWidth = (int) config('attachment.image.max_width', 1920);
@@ -51,48 +57,50 @@ final readonly class CreateAttachment
             $randomName = Str::uuid()->toString().'.'.$extension;
             $relativePath = $dateFolder.'/'.$randomName;
 
-            Storage::disk($targetDisk)->putFileAs(
-                $dateFolder,
-                $file,
-                $randomName
-            );
+            throw_if(Storage::disk($targetDisk)->putFileAs($dateFolder, $file, $randomName) === false, RuntimeException::class, 'Attachment could not be stored.');
         }
 
         $fileSize = (int) (Storage::disk($targetDisk)->size($relativePath) ?: $file->getSize() ?: 0);
 
-        return DB::transaction(function () use (
-            $userId,
-            $name,
-            $originalName,
-            $description,
-            $relativePath,
-            $mimeType,
-            $fileSize,
-            $targetDisk,
-            $isPrivate,
-            $attachable
-        ): Attachment {
-            /** @var Attachment $attachment */
-            $attachment = Attachment::query()->create([
-                'user_id' => $userId,
-                'name' => $name ?: $originalName,
-                'description' => $description,
-                'path' => $relativePath,
-                'disk' => $targetDisk,
-                'mime' => $mimeType,
-                'size' => $fileSize,
-                'is_private' => $isPrivate,
-            ]);
+        try {
+            return DB::transaction(function () use (
+                $userId,
+                $name,
+                $originalName,
+                $description,
+                $relativePath,
+                $mimeType,
+                $fileSize,
+                $targetDisk,
+                $isPrivate,
+                $attachable
+            ): Attachment {
+                /** @var Attachment $attachment */
+                $attachment = Attachment::query()->create([
+                    'user_id' => $userId,
+                    'name' => $name ?: $originalName,
+                    'description' => $description,
+                    'path' => $relativePath,
+                    'disk' => $targetDisk,
+                    'mime' => $mimeType,
+                    'size' => $fileSize,
+                    'is_private' => $isPrivate,
+                ]);
 
-            if ($attachable !== null) {
-                if (method_exists($attachable, 'attachAttachment')) {
-                    $attachable->attachAttachment($attachment);
-                } else {
-                    $attachable->morphToMany(Attachment::class, 'attachable', 'attachables')->syncWithoutDetaching([$attachment->id]);
+                if ($attachable instanceof Model) {
+                    if (method_exists($attachable, 'attachAttachment')) {
+                        $attachable->attachAttachment($attachment);
+                    } else {
+                        $attachable->morphToMany(Attachment::class, 'attachable', 'attachables')->syncWithoutDetaching([$attachment->id]);
+                    }
                 }
-            }
 
-            return $attachment;
-        });
+                return $attachment;
+            });
+        } catch (Throwable $throwable) {
+            Storage::disk($targetDisk)->delete($relativePath);
+
+            throw $throwable;
+        }
     }
 }

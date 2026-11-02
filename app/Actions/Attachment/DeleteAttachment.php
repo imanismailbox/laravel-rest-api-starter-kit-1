@@ -15,7 +15,7 @@ final readonly class DeleteAttachment
             $deleted = (bool) $attachment->delete();
 
             if ($deleted) {
-                DB::afterCommit(fn () => $attachment->deleteStorageFile());
+                DB::afterCommit(fn (): bool => $attachment->deleteStorageFile());
             }
 
             return $deleted;

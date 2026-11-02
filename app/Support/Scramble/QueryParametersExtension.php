@@ -10,14 +10,21 @@ use App\Query\Support\QueryDefinitionParser;
 use Dedoc\Scramble\Extensions\OperationExtension;
 use Dedoc\Scramble\Support\Generator\Operation;
 use Dedoc\Scramble\Support\Generator\Parameter;
+use Dedoc\Scramble\Support\Generator\Reference;
+use Dedoc\Scramble\Support\Generator\Response;
 use Dedoc\Scramble\Support\Generator\Schema;
+use Dedoc\Scramble\Support\Generator\Types\ArrayType;
 use Dedoc\Scramble\Support\Generator\Types\BooleanType;
 use Dedoc\Scramble\Support\Generator\Types\IntegerType;
+use Dedoc\Scramble\Support\Generator\Types\NullType;
 use Dedoc\Scramble\Support\Generator\Types\StringType;
 use Dedoc\Scramble\Support\RouteInfo;
+use Dedoc\Scramble\Support\Type\ObjectType;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use ReflectionClass;
+use ReflectionMethod;
 
 final class QueryParametersExtension extends OperationExtension
 {
@@ -77,7 +84,7 @@ final class QueryParametersExtension extends OperationExtension
                     ->description("Filter by `{$filter->name}`.");
             }
 
-            /** @var class-string<\Illuminate\Database\Eloquent\Model> $modelClass */
+            /** @var class-string<Model> $modelClass */
             $modelClass = is_subclass_of($definitionClass, BaseQueryDefinition::class)
                 ? $definitionClass::model()
                 : $definitionClass;
@@ -92,7 +99,7 @@ final class QueryParametersExtension extends OperationExtension
 
         // Fields (Sparse fieldsets)
         if ($parsed['fields']->isNotEmpty()) {
-            /** @var class-string<\Illuminate\Database\Eloquent\Model> $modelClass */
+            /** @var class-string<Model> $modelClass */
             $modelClass = is_subclass_of($definitionClass, BaseQueryDefinition::class)
                 ? $definitionClass::model()
                 : $definitionClass;
@@ -128,14 +135,13 @@ final class QueryParametersExtension extends OperationExtension
         $operation->addParameters($parameters);
 
         // 200 Response Schema & Example
-        $this->attachResponseSchema($operation, $routeInfo, $parsed, $definitionClass);
+        $this->attachResponseSchema($operation, $routeInfo, $parsed);
     }
 
     /**
      * @param  array<string, mixed>  $parsed
-     * @param  class-string  $definitionClass
      */
-    private function attachResponseSchema(Operation $operation, RouteInfo $routeInfo, array $parsed, string $definitionClass): void
+    private function attachResponseSchema(Operation $operation, RouteInfo $routeInfo, array $parsed): void
     {
         $resourceClass = $this->resolveResourceClass($routeInfo);
 
@@ -143,14 +149,14 @@ final class QueryParametersExtension extends OperationExtension
             return;
         }
 
-        $resourceType = new \Dedoc\Scramble\Support\Type\ObjectType($resourceClass);
+        $resourceType = new ObjectType($resourceClass);
         $resourceSchema = $this->openApiTransformer->transform($resourceType);
 
-        $dataSchema = (new \Dedoc\Scramble\Support\Generator\Types\ArrayType)
+        $dataSchema = (new ArrayType)
             ->setItems($resourceSchema);
 
         $isPaginated = ! ($parsed['disable_paginate'] ?? false);
-        $message = $this->resolveSuccessMessage($routeInfo, $definitionClass);
+        $message = $this->resolveSuccessMessage($routeInfo);
 
         $responseProperties = [
             'success' => (new BooleanType)->example(true),
@@ -182,14 +188,14 @@ final class QueryParametersExtension extends OperationExtension
             $responseProperties['meta'] = $metaObj;
             $responseProperties['links'] = $linksObj;
         } else {
-            $responseProperties['meta'] = new \Dedoc\Scramble\Support\Generator\Types\NullType;
+            $responseProperties['meta'] = new NullType;
         }
 
         $schemaObj = new \Dedoc\Scramble\Support\Generator\Types\ObjectType;
         $schemaObj->properties = $responseProperties;
         $schemaObj->setRequired(array_keys($responseProperties));
 
-        $response200 = \Dedoc\Scramble\Support\Generator\Response::make(200)
+        $response200 = Response::make(200)
             ->setDescription('Successful list retrieval or spreadsheet file export')
             ->setContent('application/json', Schema::fromType($schemaObj));
 
@@ -206,7 +212,7 @@ final class QueryParametersExtension extends OperationExtension
         // Replace or add 200 response
         $operation->responses = array_values(array_filter(
             $operation->responses ?? [],
-            fn ($r) => ($r instanceof \Dedoc\Scramble\Support\Generator\Response ? $r->code : null) !== 200
+            fn (Response|Reference $r): bool => ($r instanceof Response ? $r->code : null) !== 200
         ));
 
         $operation->addResponse($response200);
@@ -215,7 +221,7 @@ final class QueryParametersExtension extends OperationExtension
     private function resolveResourceClass(RouteInfo $routeInfo): ?string
     {
         $className = $routeInfo->className();
-        if (! $className) {
+        if (! $className || ! class_exists($className)) {
             return null;
         }
 
@@ -238,10 +244,10 @@ final class QueryParametersExtension extends OperationExtension
         return null;
     }
 
-    private function resolveSuccessMessage(RouteInfo $routeInfo, string $definitionClass): string
+    private function resolveSuccessMessage(RouteInfo $routeInfo): string
     {
         $className = $routeInfo->className();
-        if ($className) {
+        if ($className && class_exists($className)) {
             $reflection = new ReflectionClass($className);
             if ($reflection->hasProperty('indexMessage')) {
                 $val = $reflection->getProperty('indexMessage')->getDefaultValue();
@@ -270,20 +276,20 @@ final class QueryParametersExtension extends OperationExtension
         }
 
         $reflectionMethod = $routeInfo->reflectionMethod();
-        if (! $reflectionMethod) {
+        if (! $reflectionMethod instanceof ReflectionMethod) {
             return null;
         }
 
         // 1. Check QueryParameters attribute on method or class
         $attrs = $reflectionMethod->getAttributes(QueryParameters::class);
-        if (! empty($attrs)) {
+        if ($attrs !== []) {
             return $attrs[0]->newInstance()->definition;
         }
 
         $className = $routeInfo->className();
-        if ($className) {
-            $classAttrs = (new ReflectionClass($className))->getAttributes(QueryParameters::class);
-            if (! empty($classAttrs)) {
+        if ($className && class_exists($className)) {
+            $classAttrs = new ReflectionClass($className)->getAttributes(QueryParameters::class);
+            if ($classAttrs !== []) {
                 return $classAttrs[0]->newInstance()->definition;
             }
         }

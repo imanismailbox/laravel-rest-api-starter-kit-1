@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Api\V1\Setting;
 
+use App\Models\Setting;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
+use InvalidArgumentException;
 
 final class UpdateSettingsRequest extends FormRequest
 {
@@ -23,6 +26,26 @@ final class UpdateSettingsRequest extends FormRequest
         ];
     }
 
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $data = $this->input('settings');
+            if (! is_array($data)) {
+                return;
+            }
+
+            $existing = Setting::query()->whereIn('key', array_keys($data))->get()->keyBy('key');
+            foreach ($data as $key => $value) {
+                $setting = $existing->get($key) ?? new Setting;
+                try {
+                    $setting->setCastedValue($value);
+                } catch (InvalidArgumentException $exception) {
+                    $validator->errors()->add('settings.'.$key, $exception->getMessage());
+                }
+            }
+        });
+    }
+
     /**
      * Get settings data to update.
      *
@@ -30,15 +53,13 @@ final class UpdateSettingsRequest extends FormRequest
      */
     public function settingsData(): array
     {
-        $validated = $this->validated();
+        return $this->validated('settings', []);
+    }
 
-        if (isset($validated['settings']) && is_array($validated['settings'])) {
-            return $validated['settings'];
+    protected function prepareForValidation(): void
+    {
+        if (! $this->exists('settings')) {
+            $this->merge(['settings' => $this->except(['_token', '_method'])]);
         }
-
-        // If sent as direct key-value pairs in JSON body (excluding framework keys)
-        $all = $this->except(['_token', '_method']);
-
-        return isset($all['settings']) && is_array($all['settings']) ? $all['settings'] : $all;
     }
 }

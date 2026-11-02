@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Actions\Attachment\DeleteAttachment;
 use App\Concerns\HasAttachment;
 use App\Concerns\HasFcmTokens;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -21,12 +22,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\DatabaseNotificationCollection;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Laravel\Fortify\Contracts\PasskeyUser;
-use Laravel\Fortify\PasskeyAuthenticatable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
-use Laravel\Passkeys\Passkey;
 use Laravel\Sanctum\HasApiTokens;
 use Override;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -50,8 +49,6 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string|null $two_factor_confirmed_at
  * @property-read DatabaseNotificationCollection<int, DatabaseNotification> $notifications
  * @property-read int|null $notifications_count
- * @property-read Collection<int, Passkey> $passkeys
- * @property-read int|null $passkeys_count
  *
  * @method static UserFactory factory($count = null, $state = [])
  * @method static Builder<static>|User newModelQuery()
@@ -73,7 +70,7 @@ use Spatie\Permission\Traits\HasRoles;
  */
 #[Fillable(['name', 'email', 'username', 'password', 'avatar', 'email_verified_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-final class User extends Authenticatable implements PasskeyUser
+final class User extends Authenticatable implements MustVerifyEmail
 {
     use HasApiTokens;
     use HasAttachment;
@@ -83,7 +80,6 @@ final class User extends Authenticatable implements PasskeyUser
     use HasUuids;
     use LogsActivity;
     use Notifiable;
-    use PasskeyAuthenticatable;
     use SoftDeletes;
     use TwoFactorAuthenticatable;
 
@@ -108,6 +104,14 @@ final class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * Hash used in email verification links; changing the email invalidates old links.
+     */
+    public function emailVerificationHash(): string
+    {
+        return hash('sha256', $this->getEmailForVerification());
+    }
+
+    /**
      * Get the user's initials
      */
     public function initials(): string
@@ -128,6 +132,37 @@ final class User extends Authenticatable implements PasskeyUser
             ->logOnly(['name', 'email'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges();
+    }
+
+    protected static function booted(): void
+    {
+        self::updated(static function (User $user): void {
+            if ($user->wasChanged('password')) {
+                $user->tokens()->delete();
+            }
+        });
+
+        // Attachment rows null their user_id on delete, so remove the user's files first.
+        self::forceDeleting(static function (User $user): void {
+            Attachment::query()->where('user_id', $user->id)
+                ->each(static fn (Attachment $attachment): bool => resolve(DeleteAttachment::class)->handle($attachment));
+
+            $avatar = $user->avatar;
+            if ($avatar && ! str_starts_with($avatar, 'http')) {
+                $disk = (string) config('filesystems.default');
+                DB::afterCommit(static fn () => rescue(static fn () => Storage::disk($disk)->delete($avatar), report: true));
+            }
+        });
+    }
+
+    /**
+     * Store emails lowercased so lookups and unique checks ignore case.
+     *
+     * @return Attribute<string, string>
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(set: static fn (string $value): string => mb_strtolower(mb_trim($value)));
     }
 
     /**

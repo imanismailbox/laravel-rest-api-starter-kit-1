@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Query\Filters;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Spatie\QueryBuilder\Filters\Filter;
 
+/**
+ * @implements Filter<Model>
+ */
 final readonly class GlobalSearchFilter implements Filter
 {
     /**
@@ -21,7 +25,7 @@ final readonly class GlobalSearchFilter implements Filter
     {
         unset($property);
 
-        $search = mb_trim((string) $value);
+        $search = mb_trim(is_array($value) ? implode(',', $value) : (string) $value);
 
         if ($search === '') {
             return;
@@ -34,6 +38,9 @@ final readonly class GlobalSearchFilter implements Filter
         });
     }
 
+    /**
+     * @param  Builder<Model>  $query
+     */
     private function applyColumnSearch(Builder $query, string $column, string $search): void
     {
         if (! str_contains($column, '.')) {
@@ -47,14 +54,20 @@ final readonly class GlobalSearchFilter implements Filter
         });
     }
 
+    /**
+     * @param  Builder<Model>  $query
+     */
     private function applyMatch(Builder $query, string $method, string $column, string $search): void
     {
         $query->{$method}($column, $this->operator($query), "%{$search}%");
     }
 
+    /**
+     * @param  Builder<Model>  $query
+     */
     private function operator(Builder $query): string
     {
-        return $query->getConnection()->getDriverName() === 'pgsql'
+        return $query->getModel()->getConnection()->getDriverName() === 'pgsql'
             ? 'ILIKE'
             : 'LIKE';
     }

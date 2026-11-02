@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Requests\Api\V1\Attachment;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 
 final class SyncAttachmentsRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true;
+        return Gate::allows('updateAttachments', $this->route('user'));
     }
 
     /**
@@ -19,8 +20,8 @@ final class SyncAttachmentsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'attachment_ids' => ['required', 'array'],
-            'attachment_ids.*' => ['required', 'integer', 'exists:attachments,id'],
+            'attachment_ids' => ['present', 'array', 'max:100'],
+            'attachment_ids.*' => ['required', 'integer', 'distinct', 'exists:attachments,id'],
         ];
     }
 
