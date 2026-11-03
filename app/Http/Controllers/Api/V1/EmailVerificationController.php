@@ -6,11 +6,11 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\ApiController;
 use App\Models\User;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Liamsinami\ApiEssentials\ApiResponse;
 
 #[Group('Auth')]
 final class EmailVerificationController extends ApiController

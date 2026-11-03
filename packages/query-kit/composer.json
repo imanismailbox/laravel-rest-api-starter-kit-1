@@ -1,0 +1,25 @@
+{
+    "name": "liamsinami/query-kit",
+    "description": "Attribute-driven query definitions on top of spatie/laravel-query-builder, with Excel export and Scramble docs.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4",
+        "dedoc/scramble": "^0.13.42",
+        "laravel/framework": "^13.7",
+        "maatwebsite/excel": "^4.0",
+        "spatie/laravel-query-builder": "^7.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Liamsinami\\QueryKit\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Liamsinami\\QueryKit\\QueryKitServiceProvider"
+            ]
+        }
+    }
+}

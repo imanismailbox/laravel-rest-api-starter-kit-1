@@ -13,10 +13,10 @@ use App\Http\Requests\Api\V1\Role\CreateRoleRequest;
 use App\Http\Requests\Api\V1\Role\UpdateRoleRequest;
 use App\Http\Resources\RoleResource;
 use App\Query\Definitions\RoleQueryDefinition;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Liamsinami\ApiEssentials\ApiResponse;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\Response;
 

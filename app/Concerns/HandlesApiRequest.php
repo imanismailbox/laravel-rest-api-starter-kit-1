@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Concerns;
 
-use App\Exports\Actions\DispatchExport;
-use App\Query\Builders\QueryBuilderFactory;
-use App\Query\Support\QueryContext;
-use App\Query\Support\QueryDefinitionParser;
-use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
+use Liamsinami\ApiEssentials\ApiResponse;
+use Liamsinami\QueryKit\Builders\QueryBuilderFactory;
+use Liamsinami\QueryKit\Exports\DispatchExport;
+use Liamsinami\QueryKit\Support\QueryContext;
+use Liamsinami\QueryKit\Support\QueryDefinitionParser;
 use Spatie\QueryBuilder\QueryBuilder;
 use Symfony\Component\HttpFoundation\Response;
 

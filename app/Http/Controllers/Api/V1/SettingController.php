@@ -9,10 +9,10 @@ use App\Actions\Setting\UpdateSettings;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\V1\Setting\UpdateSettingsRequest;
 use App\Http\Resources\SettingResource;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Liamsinami\ApiEssentials\ApiResponse;
 
 #[Group('Setting')]
 final class SettingController extends ApiController

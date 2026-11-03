@@ -1,0 +1,22 @@
+{
+    "name": "liamsinami/api-essentials",
+    "description": "Standard JSON API envelope, error codes, exception rendering, batch operations and API middleware for Laravel.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.4",
+        "laravel/framework": "^13.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Liamsinami\\ApiEssentials\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Liamsinami\\ApiEssentials\\ApiEssentialsServiceProvider"
+            ]
+        }
+    }
+}

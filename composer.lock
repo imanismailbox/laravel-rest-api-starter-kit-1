@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "33de8ac50b3eac40f23e2b8830410e69",
+    "content-hash": "478f3f231bddfb6a18817d9566267b5e",
     "packages": [
         {
             "name": "aws/aws-crt-php",
@@ -4224,6 +4224,75 @@
                 }
             ],
             "time": "2026-03-08T20:05:35+00:00"
+        },
+        {
+            "name": "liamsinami/api-essentials",
+            "version": "dev-refactor/local-packages",
+            "dist": {
+                "type": "path",
+                "url": "packages/api-essentials",
+                "reference": "3837fb4bf962143b6af5526fc58a8505e6764b4b"
+            },
+            "require": {
+                "laravel/framework": "^13.7",
+                "php": "^8.4"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Liamsinami\\ApiEssentials\\ApiEssentialsServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Liamsinami\\ApiEssentials\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Standard JSON API envelope, error codes, exception rendering, batch operations and API middleware for Laravel.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "liamsinami/query-kit",
+            "version": "dev-refactor/local-packages",
+            "dist": {
+                "type": "path",
+                "url": "packages/query-kit",
+                "reference": "7de75680dc422c2ba75ba7a603e5811cf6e8e8f3"
+            },
+            "require": {
+                "dedoc/scramble": "^0.13.42",
+                "laravel/framework": "^13.7",
+                "maatwebsite/excel": "^4.0",
+                "php": "^8.4",
+                "spatie/laravel-query-builder": "^7.3"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Liamsinami\\QueryKit\\QueryKitServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Liamsinami\\QueryKit\\": "src/"
+                }
+            },
+            "license": [
+                "MIT"
+            ],
+            "description": "Attribute-driven query definitions on top of spatie/laravel-query-builder, with Excel export and Scramble docs.",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "maatwebsite/excel",
@@ -15495,7 +15564,10 @@
     ],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": {},
+    "stability-flags": {
+        "liamsinami/api-essentials": 20,
+        "liamsinami/query-kit": 20
+    },
     "prefer-stable": true,
     "prefer-lowest": false,
     "platform": {

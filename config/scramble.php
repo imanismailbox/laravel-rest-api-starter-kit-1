@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Support\Scramble\QueryParametersExtension;
 use Dedoc\Scramble\Http\Middleware\RestrictedDocsAccess;
 use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
+use Liamsinami\QueryKit\Scramble\QueryParametersExtension;
 
 return [
     /*

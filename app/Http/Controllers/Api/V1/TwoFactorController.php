@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\ApiErrorCode;
 use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\V1\Auth\ConfirmTwoFactorRequest;
 use App\Http\Requests\Api\V1\Auth\CurrentPasswordRequest;
 use App\Models\User;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Laravel\Fortify\Actions\ConfirmTwoFactorAuthentication;
@@ -17,6 +15,8 @@ use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
 use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
 use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
 use Laravel\Fortify\Fortify;
+use Liamsinami\ApiEssentials\ApiResponse;
+use Liamsinami\ApiEssentials\Enums\ApiErrorCode;
 use Symfony\Component\HttpFoundation\Response;
 
 #[Group('Two-Factor Authentication')]

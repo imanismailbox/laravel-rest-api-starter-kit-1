@@ -13,10 +13,10 @@ use App\Http\Requests\Api\V1\Fcm\SendTestNotificationRequest;
 use App\Http\Resources\FcmTokenResource;
 use App\Models\User;
 use App\Notifications\GenericFcmNotification;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Liamsinami\ApiEssentials\ApiResponse;
 
 #[Group('FCM Notifications')]
 final class FcmController extends ApiController

@@ -7,6 +7,8 @@ parameters:
         - app/
         - bootstrap
         - routes
+        - packages/api-essentials/src
+        - packages/query-kit/src
     level: 7
     tmpDir: /tmp/phpstan
     treatPhpDocTypesAsCertain: false
