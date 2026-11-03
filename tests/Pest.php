@@ -41,8 +41,8 @@ pest()->extend(TestCase::class)
 |
 */
 
-use App\Enums\ApiErrorCode;
 use Illuminate\Testing\TestResponse;
+use Liamsinami\ApiEssentials\Enums\ApiErrorCode;
 
 TestResponse::macro('assertApiSuccess', function (?string $message = null, int $status = 200): TestResponse {
     /** @var TestResponse $this */

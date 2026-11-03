@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace App\Query\Definitions;
 
-use App\Query\Attributes\QueryDefinition;
+use Liamsinami\QueryKit\Attributes\QueryDefinition;
+use Liamsinami\QueryKit\Definitions\BaseQueryDefinition;
 use Spatie\Permission\Models\Permission;
 
 #[QueryDefinition(

@@ -8,7 +8,6 @@ use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\V1\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Api\V1\Auth\ResetPasswordRequest;
 use App\Models\User;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
@@ -16,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Liamsinami\ApiEssentials\ApiResponse;
 
 #[Group('Auth')]
 final class PasswordResetController extends ApiController

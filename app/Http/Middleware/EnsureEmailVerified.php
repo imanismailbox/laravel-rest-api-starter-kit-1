@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
-use App\Enums\ApiErrorCode;
 use App\Models\Setting;
-use App\Support\ApiResponse;
 use Closure;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\Request;
+use Liamsinami\ApiEssentials\ApiResponse;
+use Liamsinami\ApiEssentials\Enums\ApiErrorCode;
 use Symfony\Component\HttpFoundation\Response;
 
 final class EnsureEmailVerified

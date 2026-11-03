@@ -23,12 +23,12 @@ use App\Http\Requests\Api\V1\Auth\UploadAvatarRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Setting;
 use App\Models\User;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Liamsinami\ApiEssentials\ApiResponse;
 
 #[Group('Auth')]
 final class AuthController extends ApiController

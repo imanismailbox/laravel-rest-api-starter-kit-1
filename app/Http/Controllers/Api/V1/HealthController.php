@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Api\ApiController;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
+use Liamsinami\ApiEssentials\ApiResponse;
 
 #[Group('Health')]
 final class HealthController extends ApiController

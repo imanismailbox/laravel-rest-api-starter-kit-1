@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-use App\Enums\ApiErrorCode;
 use App\Models\User;
-use App\Support\ApiResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Liamsinami\ApiEssentials\ApiResponse;
+use Liamsinami\ApiEssentials\Enums\ApiErrorCode;
 
 test('api response helper returns standardized success payload with meta', function (): void {
     $response = ApiResponse::success(['id' => 1], 'Success test.', 200, ['custom_meta' => true]);

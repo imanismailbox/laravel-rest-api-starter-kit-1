@@ -11,10 +11,10 @@ use App\Http\Controllers\Api\ApiController;
 use App\Http\Requests\Api\V1\Attachment\UploadAttachmentRequest;
 use App\Http\Resources\AttachmentResource;
 use App\Models\Attachment;
-use App\Support\ApiResponse;
 use Dedoc\Scramble\Attributes\Group;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
+use Liamsinami\ApiEssentials\ApiResponse;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 #[Group('Attachment')]

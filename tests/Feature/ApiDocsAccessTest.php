@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use App\Enums\ApiErrorCode;
 use App\Models\User;
 use Laravel\Sanctum\Sanctum;
+use Liamsinami\ApiEssentials\Enums\ApiErrorCode;
 
 test('health check api endpoint is publicly accessible and returns standard envelope', function (): void {
     $this->getJson(route('api.v1.health'))
